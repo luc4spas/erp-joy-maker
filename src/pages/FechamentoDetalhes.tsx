@@ -192,6 +192,10 @@ const FechamentoDetalhes = () => {
                 </p>
                 <p className="text-lg font-semibold">{formatCurrency(totalComissao)}</p>
               </div>
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <Calendar className="w-3 h-3" />
+                  {formatDateBR(fechamento.data)}
+                </div>
             </div>
           </div>
 
