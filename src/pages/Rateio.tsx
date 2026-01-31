@@ -29,6 +29,8 @@ interface Fechamento {
   data: string;
   comissao_japa: number;
   comissao_trattoria: number;
+  japa_taxa: number;
+  trattoria_taxa: number;
 }
 
 interface RateioItem {
@@ -105,7 +107,7 @@ const Rateio = () => {
     const [funcRes, fechRes, pagRes] = await Promise.all([
       supabase.from('funcionarios').select('*').eq('ativo', true),
       supabase.from('fechamentos')
-        .select('id, data, comissao_japa, comissao_trattoria')
+        .select('id, data, comissao_japa, comissao_trattoria, japa_taxa, trattoria_taxa')
         .gte('data', startDateStr)
         .lte('data', endDateStr)
         .order('data', { ascending: true }),
@@ -150,9 +152,11 @@ const Rateio = () => {
     const totalComissaoTrattoria = fechs.reduce((sum, f) => sum + Number(f.comissao_trattoria), 0);
     const totalComissao8Porcento = totalComissaoJapa + totalComissaoTrattoria;
     
-    // Calcular o total de 10% (taxa de serviço completa) e os 2% da empresa
-    const totalTaxaServico = totalComissao8Porcento / 0.8; // 8% = 80% de 10%, então 10% = 8% / 0.8
-    const empresaValor = totalTaxaServico * 0.2; // 2% do total = 20% da taxa de serviço
+    // Calcular o total de 10% diretamente das taxas armazenadas (já são os valores de 10%)
+    const totalTaxaJapa = fechs.reduce((sum, f) => sum + Number(f.japa_taxa), 0);
+    const totalTaxaTrattoria = fechs.reduce((sum, f) => sum + Number(f.trattoria_taxa), 0);
+    const totalTaxaServico = totalTaxaJapa + totalTaxaTrattoria;
+    const empresaValor = totalTaxaServico - totalComissao8Porcento; // 2% = 10% - 8%
     
     const totalDias = fechs.length;
 
@@ -402,10 +406,153 @@ const Rateio = () => {
   const goToNextWeek = () => setWeekStart(addWeeks(weekStart, 1));
   const goToCurrentWeek = () => setWeekStart(startOfWeek(new Date(), { weekStartsOn: 0 }));
 
+  const handlePrintSummary = () => {
+    const periodoInicio = formatDateBR(format(weekStart, 'yyyy-MM-dd'));
+    const periodoFim = formatDateBR(format(weekEnd, 'yyyy-MM-dd'));
+    
+    const w = window.open('', '_blank');
+    if (w) {
+      w.document.write(`
+        <html>
+        <head>
+          <title>Resumo Rateio Semanal</title>
+          <style>
+            body { 
+              font-family: Arial, sans-serif; 
+              padding: 30px; 
+              max-width: 900px; 
+              margin: 0 auto; 
+              color: #333;
+            }
+            h1 { 
+              font-size: 22px; 
+              text-align: center; 
+              border-bottom: 2px solid #000; 
+              padding-bottom: 10px; 
+              margin-bottom: 20px;
+            }
+            .periodo { 
+              background: #f0f0f0; 
+              padding: 10px 15px; 
+              border-radius: 5px; 
+              text-align: center; 
+              margin-bottom: 25px;
+              font-size: 14px;
+            }
+            .grid { 
+              display: grid; 
+              grid-template-columns: repeat(3, 1fr); 
+              gap: 20px; 
+              margin-bottom: 30px;
+            }
+            .card {
+              border: 1px solid #ddd;
+              border-radius: 8px;
+              padding: 15px;
+            }
+            .card-header {
+              font-weight: bold;
+              font-size: 14px;
+              margin-bottom: 12px;
+              padding-bottom: 8px;
+              border-bottom: 1px solid #eee;
+            }
+            .card-row {
+              display: flex;
+              justify-content: space-between;
+              padding: 6px 0;
+              font-size: 13px;
+            }
+            .card-row.total {
+              font-weight: bold;
+              border-top: 1px solid #ddd;
+              margin-top: 8px;
+              padding-top: 10px;
+            }
+            .taxa-card {
+              background: #e8f4fc;
+            }
+            .valor-destaque {
+              font-size: 20px;
+              font-weight: bold;
+              color: #0066cc;
+            }
+            @media print {
+              body { padding: 20px; }
+              .grid { grid-template-columns: repeat(3, 1fr); }
+            }
+          </style>
+        </head>
+        <body>
+          <h1>RESUMO DO RATEIO SEMANAL</h1>
+          
+          <div class="periodo">
+            <strong>Período:</strong> ${periodoInicio} a ${periodoFim} | 
+            <strong>Fechamentos:</strong> ${fechamentos.length} dia(s)
+          </div>
+          
+          <div class="grid">
+            <!-- Card 1: Taxa de Serviço -->
+            <div class="card taxa-card">
+              <div class="card-header">Taxa de Serviço Total (10%)</div>
+              <div style="text-align: center; padding: 15px 0;">
+                <span class="valor-destaque">${formatCurrency(totalTaxaServico10)}</span>
+              </div>
+              <div class="card-row">
+                <span>Comissão Colaboradores (8%)</span>
+                <span><strong>${formatCurrency(totalComissao8)}</strong></span>
+              </div>
+              <div class="card-row">
+                <span>Japa</span>
+                <span>${formatCurrency(totalComissaoJapa)}</span>
+              </div>
+              <div class="card-row">
+                <span>Trattoria</span>
+                <span>${formatCurrency(totalComissaoTrattoria)}</span>
+              </div>
+            </div>
+            
+            <!-- Card 2: Distribuição por Setor -->
+            <div class="card">
+              <div class="card-header">Distribuição por Setor</div>
+              ${sectorDistributions.map(s => `
+                <div class="card-row">
+                  <span>${s.setor}</span>
+                  <span>${s.quantidade} col. × ${formatCurrency(s.valorPorColaborador)}</span>
+                </div>
+              `).join('')}
+            </div>
+            
+            <!-- Card 3: Totalização por Setor -->
+            <div class="card">
+              <div class="card-header">Totalização por Setor</div>
+              ${sectorTotalsList.map(s => `
+                <div class="card-row">
+                  <span>${s.label}</span>
+                  <span>${formatCurrency(s.value)}</span>
+                </div>
+              `).join('')}
+              <div class="card-row total">
+                <span>Total Distribuído</span>
+                <span>${formatCurrency(sectorTotalsList.reduce((sum, s) => sum + s.value, 0))}</span>
+              </div>
+            </div>
+          </div>
+        </body>
+        </html>
+      `);
+      w.document.close();
+      w.print();
+    }
+  };
+
   const totalComissaoJapa = fechamentos.reduce((sum, f) => sum + Number(f.comissao_japa), 0);
   const totalComissaoTrattoria = fechamentos.reduce((sum, f) => sum + Number(f.comissao_trattoria), 0);
   const totalComissao8 = totalComissaoJapa + totalComissaoTrattoria;
-  const totalTaxaServico10 = totalComissao8 / 0.8; // Total 10% (taxa de serviço completa)
+  // Total 10% diretamente das taxas armazenadas
+  const totalTaxaJapa = fechamentos.reduce((sum, f) => sum + Number(f.japa_taxa || 0), 0);
+  const totalTaxaTrattoria = fechamentos.reduce((sum, f) => sum + Number(f.trattoria_taxa || 0), 0);
+  const totalTaxaServico10 = totalTaxaJapa + totalTaxaTrattoria;
 
   // Preparar dados para os componentes de resumo
   const sectorTotalsList = [
@@ -495,19 +642,29 @@ const Rateio = () => {
 
         {/* Resumo de Comissões e Totalização - Layout igual à planilha */}
         {fechamentos.length > 0 && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Coluna 1: Input de comissões */}
-            <CommissionInputSummary 
-              comissaoJapa={totalComissaoJapa}
-              comissaoTrattoria={totalComissaoTrattoria}
-              totalTaxaServico={totalTaxaServico10}
-            />
+          <div className="space-y-4">
+            {/* Botão de impressão dos cards */}
+            <div className="flex justify-end">
+              <Button variant="outline" onClick={handlePrintSummary}>
+                <Printer className="w-4 h-4 mr-2" />
+                Imprimir Resumo
+              </Button>
+            </div>
+            
+            <div id="rateio-summary-cards" className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* Coluna 1: Input de comissões */}
+              <CommissionInputSummary 
+                comissaoJapa={totalComissaoJapa}
+                comissaoTrattoria={totalComissaoTrattoria}
+                totalTaxaServico={totalTaxaServico10}
+              />
 
-            {/* Coluna 2: Distribuição por setor com quantidade e valor por colaborador */}
-            <SectorDistributionTable distributions={sectorDistributions} />
+              {/* Coluna 2: Distribuição por setor com quantidade e valor por colaborador */}
+              <SectorDistributionTable distributions={sectorDistributions} />
 
-            {/* Coluna 3: Totalização por Setor */}
-            <SectorTotalsSummary totals={sectorTotalsList} />
+              {/* Coluna 3: Totalização por Setor */}
+              <SectorTotalsSummary totals={sectorTotalsList} />
+            </div>
           </div>
         )}
 
