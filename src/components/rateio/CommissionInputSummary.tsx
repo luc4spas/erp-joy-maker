@@ -1,4 +1,5 @@
 import { formatCurrency } from '@/lib/processData';
+import { DollarSign } from 'lucide-react';
 
 interface CommissionInputSummaryProps {
   comissaoJapa: number;
@@ -6,25 +7,28 @@ interface CommissionInputSummaryProps {
 }
 
 export function CommissionInputSummary({ comissaoJapa, comissaoTrattoria }: CommissionInputSummaryProps) {
+  const totalGeral = comissaoJapa + comissaoTrattoria;
+
   return (
-    <div className="bg-card rounded-xl shadow-card overflow-hidden">
-      <div className="bg-primary p-3">
-        <h3 className="text-sm font-semibold text-primary-foreground text-center">
-          TOTAL DE COMISSÃO DO PERÍODO
-        </h3>
-      </div>
-      <div className="p-4 space-y-3">
-        <div className="flex items-center justify-between bg-japa-light rounded-lg px-4 py-3">
-          <span className="text-sm font-medium text-japa-foreground">Comissão Japa</span>
-          <span className="text-lg font-bold text-japa tabular-nums">
-            {formatCurrency(comissaoJapa)}
-          </span>
+    <div className="bg-gradient-to-r from-primary to-primary/80 rounded-2xl p-6 text-primary-foreground shadow-card">
+      <div className="flex items-center gap-4 mb-4">
+        <div className="w-12 h-12 rounded-xl bg-primary-foreground/10 flex items-center justify-center">
+          <DollarSign className="w-6 h-6" />
         </div>
-        <div className="flex items-center justify-between bg-trattoria-light rounded-lg px-4 py-3">
-          <span className="text-sm font-medium text-trattoria-foreground">Comissão Trattoria</span>
-          <span className="text-lg font-bold text-trattoria tabular-nums">
-            {formatCurrency(comissaoTrattoria)}
-          </span>
+        <div>
+          <p className="text-sm font-medium text-primary-foreground/70">Total de Comissão do Período</p>
+          <p className="text-3xl font-bold">{formatCurrency(totalGeral)}</p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4 pt-4 border-t border-primary-foreground/20">
+        <div>
+          <p className="text-xs text-primary-foreground/60">Comissão Japa</p>
+          <p className="text-lg font-semibold">{formatCurrency(comissaoJapa)}</p>
+        </div>
+        <div>
+          <p className="text-xs text-primary-foreground/60">Comissão Trattoria</p>
+          <p className="text-lg font-semibold">{formatCurrency(comissaoTrattoria)}</p>
         </div>
       </div>
     </div>
