@@ -103,7 +103,7 @@ const Funcionarios = () => {
           ativo: form.ativo 
         });
         if (error) throw error;
-        toast({ title: 'Funcionário adicionado!' });
+        toast({ title: 'Colaborador adicionado!' });
       }
       setDialogOpen(false);
       setEditingId(null);
@@ -140,7 +140,7 @@ const Funcionarios = () => {
   if (!user) return null;
 
   return (
-    <AppLayout title="Funcionários" subtitle="Cadastre e gerencie a equipe">
+    <AppLayout title="Colaboradores" subtitle="Cadastre e gerencie a equipe">
       <div className="space-y-6">
         <Dialog 
           open={dialogOpen} 
@@ -155,12 +155,12 @@ const Funcionarios = () => {
           <DialogTrigger asChild>
             <Button className="gap-2">
               <Plus className="w-4 h-4" />
-              Novo Funcionário
+              Novo Colaborador
             </Button>
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>{editingId ? 'Editar' : 'Novo'} Funcionário</DialogTitle>
+              <DialogTitle>{editingId ? 'Editar' : 'Novo'} Colaborador</DialogTitle>
             </DialogHeader>
             <div className="space-y-4 py-4">
               <div>
@@ -168,7 +168,7 @@ const Funcionarios = () => {
                 <Input 
                   value={form.nome} 
                   onChange={(e) => setForm({ ...form, nome: e.target.value })} 
-                  placeholder="Nome do funcionário"
+                  placeholder="Nome do colaborador"
                 />
               </div>
               
@@ -234,7 +234,7 @@ const Funcionarios = () => {
         ) : funcionarios.length === 0 ? (
           <div className="text-center py-16 bg-card rounded-2xl shadow-card">
             <Users className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
-            <p className="text-muted-foreground">Nenhum funcionário cadastrado.</p>
+            <p className="text-muted-foreground">Nenhum colaborador cadastrado.</p>
           </div>
         ) : (
           <div className="bg-card rounded-2xl shadow-card overflow-hidden">
