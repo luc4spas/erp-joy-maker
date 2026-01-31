@@ -1,6 +1,6 @@
+import { cn } from '@/lib/utils';
 import { formatCurrency } from '@/lib/processData';
 import { Users } from 'lucide-react';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 interface SectorDistribution {
   setor: string;
@@ -17,36 +17,56 @@ export function SectorDistributionTable({ distributions }: SectorDistributionTab
   const totalColaboradores = distributions.reduce((sum, d) => sum + d.quantidade, 0);
 
   return (
-    <div className="bg-card rounded-xl shadow-card border border-border overflow-hidden">
-      <div className="p-4 border-b border-border flex items-center gap-3">
-        <div className="w-10 h-10 rounded-lg bg-secondary flex items-center justify-center">
-          <Users className="w-5 h-5 text-primary" />
+    <div className="p-6 rounded-2xl shadow-card bg-secondary animate-slide-up">
+      <div className="flex items-center gap-3 mb-6">
+        <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center">
+          <span className="text-2xl">👥</span>
         </div>
         <div>
-          <p className="text-xs text-muted-foreground">Distribuição por Setor</p>
-          <p className="text-lg font-semibold text-foreground">{totalColaboradores} colaboradores</p>
+          <h3 className="text-xl font-bold text-foreground">
+            Distribuição por Setor
+          </h3>
+          <p className="text-sm text-muted-foreground">
+            {totalColaboradores} colaboradores ativos
+          </p>
         </div>
       </div>
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead className="text-xs">Setor</TableHead>
-            <TableHead className="text-xs text-center">Qtd</TableHead>
-            <TableHead className="text-xs text-right">Valor/Colab.</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {distributions.map((item, index) => (
-            <TableRow key={index} className={item.colorClass}>
-              <TableCell className="text-sm font-medium py-2">{item.setor}</TableCell>
-              <TableCell className="text-sm text-center py-2">{item.quantidade}</TableCell>
-              <TableCell className="text-sm font-bold text-right tabular-nums py-2">
-                {formatCurrency(item.valorPorColaborador)}
-              </TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+
+      <div className="space-y-3">
+        {distributions.map((item, index) => {
+          const isJapa = item.setor.includes('JAPA');
+          const isTrattoria = item.setor.includes('TRATTORIA');
+          
+          return (
+            <div 
+              key={index}
+              className={cn(
+                "p-4 rounded-xl",
+                isJapa ? "bg-japa-light" : isTrattoria ? "bg-trattoria-light" : "bg-card/60"
+              )}
+            >
+              <div className="flex items-center justify-between mb-2">
+                <span className={cn(
+                  "text-sm font-medium",
+                  isJapa ? "text-japa-foreground" : isTrattoria ? "text-trattoria-foreground" : "text-foreground"
+                )}>
+                  {item.setor}
+                </span>
+                <span className={cn(
+                  "text-lg font-bold tabular-nums",
+                  isJapa ? "text-japa" : isTrattoria ? "text-trattoria" : "text-foreground"
+                )}>
+                  {formatCurrency(item.valorPorColaborador)}
+                </span>
+              </div>
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Users className="w-3 h-3" />
+                <span>{item.quantidade} {item.quantidade === 1 ? 'colaborador' : 'colaboradores'}</span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
