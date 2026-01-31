@@ -44,14 +44,14 @@ const Rateio = () => {
   const [fechamentos, setFechamentos] = useState<Fechamento[]>([]);
   const [rateio, setRateio] = useState<RateioItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [weekStart, setWeekStart] = useState<Date>(() => startOfWeek(new Date(), { weekStartsOn: 1 }));
+  const [weekStart, setWeekStart] = useState<Date>(() => startOfWeek(new Date(), { weekStartsOn: 0 }));
   const [pagamentos, setPagamentos] = useState<Record<string, { id: string; pago: boolean }>>({});
   
   const navigate = useNavigate();
   const { user, isLoading: authLoading } = useAuth();
   const { toast } = useToast();
 
-  const weekEnd = endOfWeek(weekStart, { weekStartsOn: 1 });
+  const weekEnd = endOfWeek(weekStart, { weekStartsOn: 0 });
 
   useEffect(() => {
     if (!authLoading && !user) navigate('/auth');
@@ -313,7 +313,7 @@ const Rateio = () => {
 
   const goToPreviousWeek = () => setWeekStart(subWeeks(weekStart, 1));
   const goToNextWeek = () => setWeekStart(addWeeks(weekStart, 1));
-  const goToCurrentWeek = () => setWeekStart(startOfWeek(new Date(), { weekStartsOn: 1 }));
+  const goToCurrentWeek = () => setWeekStart(startOfWeek(new Date(), { weekStartsOn: 0 }));
 
   const totalComissaoJapa = fechamentos.reduce((sum, f) => sum + Number(f.comissao_japa), 0);
   const totalComissaoTrattoria = fechamentos.reduce((sum, f) => sum + Number(f.comissao_trattoria), 0);
