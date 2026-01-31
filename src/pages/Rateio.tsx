@@ -7,7 +7,7 @@ import { formatCurrency } from '@/lib/processData';
 import { formatDateBR } from '@/lib/dateUtils';
 import { AppLayout } from '@/components/AppLayout';
 import { Button } from '@/components/ui/button';
-import { Loader2, Printer, DollarSign, Users, Check, Clock, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Loader2, Printer, DollarSign, Users, Check, Clock, ChevronLeft, ChevronRight, Calendar } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { format, startOfWeek, endOfWeek, addWeeks, subWeeks } from 'date-fns';
@@ -440,36 +440,35 @@ const Rateio = () => {
 
   return (
     <AppLayout title="Rateio Semanal" subtitle="Distribuição de comissões por período">
-      <div className="space-y-6">
+      <div className="space-y-6 animate-fade-in">
         {/* Seletor de Semana */}
-        <div className="bg-card p-4 rounded-xl shadow-card">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <div className="flex items-center gap-2">
-              <Button variant="outline" size="icon" onClick={goToPreviousWeek}>
-                <ChevronLeft className="w-4 h-4" />
-              </Button>
-              
-              <div className="text-center min-w-[200px]">
-                <p className="text-sm text-muted-foreground">Semana selecionada</p>
-                <p className="font-semibold">
+        <div className="bg-card rounded-xl p-4 shadow-card border border-border flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <Button variant="outline" size="icon" onClick={goToPreviousWeek}>
+              <ChevronLeft className="w-4 h-4" />
+            </Button>
+            
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-secondary flex items-center justify-center">
+                <Calendar className="w-5 h-5 text-primary" />
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Semana Selecionada</p>
+                <p className="text-lg font-semibold text-foreground">
                   {format(weekStart, "dd/MM", { locale: ptBR })} a {format(weekEnd, "dd/MM/yyyy", { locale: ptBR })}
                 </p>
+                <p className="text-xs text-muted-foreground">{fechamentos.length} fechamento(s) no período</p>
               </div>
-              
-              <Button variant="outline" size="icon" onClick={goToNextWeek}>
-                <ChevronRight className="w-4 h-4" />
-              </Button>
             </div>
             
-            <div className="flex items-center gap-2">
-              <Badge variant="secondary" className="text-sm">
-                {fechamentos.length} fechamento(s)
-              </Badge>
-              <Button variant="secondary" onClick={goToCurrentWeek}>
-                Semana Atual
-              </Button>
-            </div>
+            <Button variant="outline" size="icon" onClick={goToNextWeek}>
+              <ChevronRight className="w-4 h-4" />
+            </Button>
           </div>
+          
+          <Button variant="secondary" onClick={goToCurrentWeek}>
+            Semana Atual
+          </Button>
         </div>
 
         {/* Resumo de Comissões e Totalização - Layout igual à planilha */}
