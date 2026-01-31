@@ -27,9 +27,9 @@ const navItems = [
   { path: '/', label: 'Visão Geral', icon: LayoutDashboard },
   { path: '/upload', label: 'Novo Upload', icon: Upload },
   { path: '/historico', label: 'Histórico', icon: History },
-  { path: '/funcionarios', label: 'Funcionários', icon: Users },
+  { path: '/funcionarios', label: 'Colaboradores', icon: Users },
   { path: '/despesas', label: 'Despesas', icon: Receipt },
-  { path: '/rateio', label: 'Rateio do Dia', icon: DollarSign },
+  { path: '/rateio', label: 'Rateio Semanal', icon: DollarSign },
 ];
 
 export function AppLayout({ children, title, subtitle }: AppLayoutProps) {

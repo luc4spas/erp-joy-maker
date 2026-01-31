@@ -294,6 +294,15 @@ const Rateio = () => {
     const periodoInicio = formatDateBR(format(weekStart, 'yyyy-MM-dd'));
     const periodoFim = formatDateBR(format(weekEnd, 'yyyy-MM-dd'));
     
+    // Gerar detalhamento apenas para valores > 0
+    const detalhes: string[] = [];
+    if (item.valorJapa > 0) {
+      detalhes.push(`<p><strong>Japa:</strong> ${formatCurrency(item.valorJapa)}</p>`);
+    }
+    if (item.valorTrattoria > 0) {
+      detalhes.push(`<p><strong>Trattoria:</strong> ${formatCurrency(item.valorTrattoria)}</p>`);
+    }
+    
     const w = window.open('', '_blank');
     if (w) {
       w.document.write(`
@@ -361,15 +370,14 @@ const Rateio = () => {
           
           <div class="valores">
             <h3>Detalhamento por Frente:</h3>
-            <p><strong>Japa:</strong> ${formatCurrency(item.valorJapa)}</p>
-            <p><strong>Trattoria:</strong> ${formatCurrency(item.valorTrattoria)}</p>
+            ${detalhes.join('')}
             <p><strong>Dias com fechamento:</strong> ${item.totalDias} dia(s)</p>
           </div>
           
           <p class="total">VALOR TOTAL: ${formatCurrency(item.valor)}</p>
           
           <div class="assinatura">
-            Assinatura do Funcionário
+            Assinatura do Colaborador
           </div>
         </body>
         </html>
@@ -501,66 +509,137 @@ const Rateio = () => {
         ) : rateio.length === 0 ? (
           <div className="text-center py-16 bg-card rounded-2xl shadow-card">
             <Users className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
-            <p className="text-muted-foreground">Cadastre funcionários ativos para calcular o rateio.</p>
+            <p className="text-muted-foreground">Cadastre colaboradores ativos para calcular o rateio.</p>
           </div>
         ) : (
           <div className="bg-card rounded-2xl shadow-card overflow-hidden">
             <div className="p-4 border-b border-border">
-              <h3 className="font-semibold text-lg">Rateio Individual por Funcionário</h3>
+              <h3 className="font-semibold text-lg">Rateio Individual por Colaborador</h3>
             </div>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Funcionário</TableHead>
-                  <TableHead>Setor</TableHead>
-                  <TableHead>Frente</TableHead>
-                  <TableHead className="text-right">Japa</TableHead>
-                  <TableHead className="text-right">Trattoria</TableHead>
-                  <TableHead className="text-right">Total</TableHead>
-                  <TableHead className="text-center">Status</TableHead>
-                  <TableHead>Ações</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {rateio.map((r) => (
-                  <TableRow key={r.funcionario.id}>
-                    <TableCell className="font-medium">{r.funcionario.nome}</TableCell>
-                    <TableCell>{r.funcionario.setor}</TableCell>
-                    <TableCell>{r.funcionario.frente}</TableCell>
-                    <TableCell className="text-right">{formatCurrency(r.valorJapa)}</TableCell>
-                    <TableCell className="text-right">{formatCurrency(r.valorTrattoria)}</TableCell>
-                    <TableCell className="text-right font-semibold text-primary">
-                      {formatCurrency(r.valor)}
-                    </TableCell>
-                    <TableCell className="text-center">
-                      <Badge 
-                        variant={r.pago ? "default" : "secondary"}
-                      >
-                        {r.pago ? (
-                          <><Check className="w-3 h-3 mr-1" /> Pago</>
-                        ) : (
-                          <><Clock className="w-3 h-3 mr-1" /> Pendente</>
-                        )}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex gap-2">
-                        <Button 
-                          variant={r.pago ? "outline" : "default"} 
-                          size="sm" 
-                          onClick={() => togglePago(r)}
-                        >
-                          {r.pago ? 'Desfazer' : 'Pagar'}
-                        </Button>
-                        <Button variant="outline" size="sm" onClick={() => handlePrint(r)}>
-                          <Printer className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
+            
+            {/* Desktop Table */}
+            <div className="hidden md:block">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Colaborador</TableHead>
+                    <TableHead>Setor</TableHead>
+                    <TableHead className="text-right">Valor</TableHead>
+                    <TableHead className="text-center">Status</TableHead>
+                    <TableHead>Ações</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {rateio.map((r) => (
+                    <TableRow key={r.funcionario.id}>
+                      <TableCell className="font-medium">{r.funcionario.nome}</TableCell>
+                      <TableCell>
+                        <Badge variant="secondary" className={
+                          r.funcionario.setor === 'Administrativo' ? 'bg-commission-light text-commission-foreground' :
+                          r.funcionario.frente === 'Japa' ? 'bg-japa-light text-japa-foreground' :
+                          r.funcionario.frente === 'Trattoria' ? 'bg-trattoria-light text-trattoria-foreground' :
+                          'bg-secondary'
+                        }>
+                          {r.funcionario.setor === 'Administrativo' 
+                            ? 'CAIXA/ADM/CUMINS' 
+                            : `${r.funcionario.setor.toUpperCase()} ${r.funcionario.frente.toUpperCase()}`}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="space-y-1">
+                          {r.valorJapa > 0 && (
+                            <div className="text-xs text-japa">Japa: {formatCurrency(r.valorJapa)}</div>
+                          )}
+                          {r.valorTrattoria > 0 && (
+                            <div className="text-xs text-trattoria">Trattoria: {formatCurrency(r.valorTrattoria)}</div>
+                          )}
+                          <div className="font-bold text-primary">{formatCurrency(r.valor)}</div>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <Badge variant={r.pago ? "default" : "secondary"}>
+                          {r.pago ? (
+                            <><Check className="w-3 h-3 mr-1" /> Pago</>
+                          ) : (
+                            <><Clock className="w-3 h-3 mr-1" /> Pendente</>
+                          )}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex gap-2">
+                          <Button 
+                            variant={r.pago ? "outline" : "default"} 
+                            size="sm" 
+                            onClick={() => togglePago(r)}
+                          >
+                            {r.pago ? 'Desfazer' : 'Pagar'}
+                          </Button>
+                          <Button variant="outline" size="sm" onClick={() => handlePrint(r)}>
+                            <Printer className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+
+            {/* Mobile Cards */}
+            <div className="md:hidden divide-y divide-border">
+              {rateio.map((r) => (
+                <div key={r.funcionario.id} className="p-4 space-y-3">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <p className="font-semibold text-foreground">{r.funcionario.nome}</p>
+                      <Badge variant="secondary" className={`mt-1 text-xs ${
+                        r.funcionario.setor === 'Administrativo' ? 'bg-commission-light text-commission-foreground' :
+                        r.funcionario.frente === 'Japa' ? 'bg-japa-light text-japa-foreground' :
+                        r.funcionario.frente === 'Trattoria' ? 'bg-trattoria-light text-trattoria-foreground' :
+                        'bg-secondary'
+                      }`}>
+                        {r.funcionario.setor === 'Administrativo' 
+                          ? 'CAIXA/ADM/CUMINS' 
+                          : `${r.funcionario.setor.toUpperCase()} ${r.funcionario.frente.toUpperCase()}`}
+                      </Badge>
+                    </div>
+                    <Badge variant={r.pago ? "default" : "secondary"}>
+                      {r.pago ? (
+                        <><Check className="w-3 h-3 mr-1" /> Pago</>
+                      ) : (
+                        <><Clock className="w-3 h-3 mr-1" /> Pendente</>
+                      )}
+                    </Badge>
+                  </div>
+                  
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      {r.valorJapa > 0 && (
+                        <p className="text-xs text-japa">Japa: {formatCurrency(r.valorJapa)}</p>
+                      )}
+                      {r.valorTrattoria > 0 && (
+                        <p className="text-xs text-trattoria">Trattoria: {formatCurrency(r.valorTrattoria)}</p>
+                      )}
+                    </div>
+                    <p className="text-xl font-bold text-primary">{formatCurrency(r.valor)}</p>
+                  </div>
+                  
+                  <div className="flex gap-2">
+                    <Button 
+                      variant={r.pago ? "outline" : "default"} 
+                      size="sm" 
+                      className="flex-1"
+                      onClick={() => togglePago(r)}
+                    >
+                      {r.pago ? 'Desfazer' : 'Pagar'}
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => handlePrint(r)}>
+                      <Printer className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         )}
       </div>
