@@ -12,6 +12,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { format, startOfWeek, endOfWeek, addWeeks, subWeeks } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { SectorTotalsSummary } from '@/components/rateio/SectorTotalsSummary';
+import { CommissionInputSummary } from '@/components/rateio/CommissionInputSummary';
+import { SectorDistributionTable } from '@/components/rateio/SectorDistributionTable';
 
 interface Funcionario {
   id: string;
@@ -39,10 +42,40 @@ interface RateioItem {
   pagamentoId?: string;
 }
 
+interface SectorTotals {
+  garcomJapa: number;
+  cozinhaJapa: number;
+  garcomTrattoria: number;
+  cozinhaTrattoria: number;
+  caixaAdmCumins: number;
+}
+
+interface SectorCounts {
+  garcomJapa: number;
+  cozinhaJapa: number;
+  garcomTrattoria: number;
+  cozinhaTrattoria: number;
+  caixaAdmCumins: number;
+}
+
 const Rateio = () => {
   const [funcionarios, setFuncionarios] = useState<Funcionario[]>([]);
   const [fechamentos, setFechamentos] = useState<Fechamento[]>([]);
   const [rateio, setRateio] = useState<RateioItem[]>([]);
+  const [sectorTotals, setSectorTotals] = useState<SectorTotals>({
+    garcomJapa: 0,
+    cozinhaJapa: 0,
+    garcomTrattoria: 0,
+    cozinhaTrattoria: 0,
+    caixaAdmCumins: 0
+  });
+  const [sectorCounts, setSectorCounts] = useState<SectorCounts>({
+    garcomJapa: 0,
+    cozinhaJapa: 0,
+    garcomTrattoria: 0,
+    cozinhaTrattoria: 0,
+    caixaAdmCumins: 0
+  });
   const [isLoading, setIsLoading] = useState(true);
   const [weekStart, setWeekStart] = useState<Date>(() => startOfWeek(new Date(), { weekStartsOn: 0 }));
   const [pagamentos, setPagamentos] = useState<Record<string, { id: string; pago: boolean }>>({});
@@ -84,7 +117,6 @@ const Rateio = () => {
     if (fechRes.data) {
       setFechamentos(fechRes.data as Fechamento[]);
       
-      // Map pagamentos by funcionario_id
       const pagMap: Record<string, { id: string; pago: boolean }> = {};
       if (pagRes.data) {
         pagRes.data.forEach((p) => {
@@ -93,7 +125,6 @@ const Rateio = () => {
       }
       setPagamentos(pagMap);
       
-      // Calculate rateio with the fetched data
       calcularRateioSemanal(fechRes.data as Fechamento[], funcRes.data as Funcionario[], pagMap);
     }
     
@@ -107,28 +138,51 @@ const Rateio = () => {
   ) => {
     if (fechs.length === 0) {
       setRateio([]);
+      setSectorTotals({ garcomJapa: 0, cozinhaJapa: 0, garcomTrattoria: 0, cozinhaTrattoria: 0, caixaAdmCumins: 0 });
+      setSectorCounts({ garcomJapa: 0, cozinhaJapa: 0, garcomTrattoria: 0, cozinhaTrattoria: 0, caixaAdmCumins: 0 });
       return;
     }
 
     // Soma total das comissões da semana
     const totalComissaoJapa = fechs.reduce((sum, f) => sum + Number(f.comissao_japa), 0);
     const totalComissaoTrattoria = fechs.reduce((sum, f) => sum + Number(f.comissao_trattoria), 0);
+    const totalGeral = totalComissaoJapa + totalComissaoTrattoria;
     const totalDias = fechs.length;
 
-    // Percentuais: Garçons 4.75%, Cozinha 2.75%, Admin 0.5%
-    const japaGarcom = totalComissaoJapa * (4.75 / 8);
-    const japaCozinha = totalComissaoJapa * (2.75 / 8);
-    const japaAdmin = totalComissaoJapa * (0.5 / 8);
-    const trattoriaGarcom = totalComissaoTrattoria * (4.75 / 8);
-    const trattoriaCozinha = totalComissaoTrattoria * (2.75 / 8);
-    const trattoriaAdmin = totalComissaoTrattoria * (0.5 / 8);
+    // Percentuais baseados na planilha de referência:
+    // Garçom: 47.5% de cada frente
+    // Cozinha: 27.5% de cada frente
+    // Admin (Caixa/ADM/Cumins): 5% do total combinado
+    const japaGarcom = totalComissaoJapa * 0.475;
+    const japaCozinha = totalComissaoJapa * 0.275;
+    const trattoriaGarcom = totalComissaoTrattoria * 0.475;
+    const trattoriaCozinha = totalComissaoTrattoria * 0.275;
+    const adminTotal = totalGeral * 0.05;
 
     // Filtrar funcionários por setor e frente
-    const garcomJapa = funcs.filter(f => f.setor === 'Garçom' && (f.frente === 'Japa' || f.frente === 'Ambas'));
-    const garcomTrattoria = funcs.filter(f => f.setor === 'Garçom' && (f.frente === 'Trattoria' || f.frente === 'Ambas'));
-    const cozinhaJapa = funcs.filter(f => f.setor === 'Cozinha' && (f.frente === 'Japa' || f.frente === 'Ambas'));
-    const cozinhaTrattoria = funcs.filter(f => f.setor === 'Cozinha' && (f.frente === 'Trattoria' || f.frente === 'Ambas'));
-    const admin = funcs.filter(f => f.setor === 'Administrativo');
+    const garcomJapaFuncs = funcs.filter(f => f.setor === 'Garçom' && (f.frente === 'Japa' || f.frente === 'Ambas'));
+    const garcomTrattoriaFuncs = funcs.filter(f => f.setor === 'Garçom' && (f.frente === 'Trattoria' || f.frente === 'Ambas'));
+    const cozinhaJapaFuncs = funcs.filter(f => f.setor === 'Cozinha' && (f.frente === 'Japa' || f.frente === 'Ambas'));
+    const cozinhaTrattoriaFuncs = funcs.filter(f => f.setor === 'Cozinha' && (f.frente === 'Trattoria' || f.frente === 'Ambas'));
+    const adminFuncs = funcs.filter(f => f.setor === 'Administrativo');
+
+    // Atualizar contagens
+    setSectorCounts({
+      garcomJapa: garcomJapaFuncs.length,
+      cozinhaJapa: cozinhaJapaFuncs.length,
+      garcomTrattoria: garcomTrattoriaFuncs.length,
+      cozinhaTrattoria: cozinhaTrattoriaFuncs.length,
+      caixaAdmCumins: adminFuncs.length
+    });
+
+    // Atualizar totais por setor
+    setSectorTotals({
+      garcomJapa: japaGarcom,
+      cozinhaJapa: japaCozinha,
+      garcomTrattoria: trattoriaGarcom,
+      cozinhaTrattoria: trattoriaCozinha,
+      caixaAdmCumins: adminTotal
+    });
 
     const result: Map<string, RateioItem> = new Map();
 
@@ -146,7 +200,7 @@ const Rateio = () => {
           valor: valorJapa + valorTrattoria,
           valorJapa,
           valorTrattoria,
-          diasTrabalhados: totalDias, // Funcionário ativo = trabalhou todos os dias com fechamento
+          diasTrabalhados: totalDias,
           totalDias,
           pago: pag?.pago || false,
           pagamentoId: pag?.id
@@ -155,29 +209,46 @@ const Rateio = () => {
     };
 
     // Distribuir comissões (proporcional ao número de funcionários em cada categoria)
-    garcomJapa.forEach(f => addToResult(f, japaGarcom / garcomJapa.length, 0));
-    garcomTrattoria.forEach(f => {
+    // Garçom Japa
+    garcomJapaFuncs.forEach(f => {
+      addToResult(f, japaGarcom / garcomJapaFuncs.length, 0);
+    });
+
+    // Garçom Trattoria
+    garcomTrattoriaFuncs.forEach(f => {
       const existing = result.get(f.id);
       if (existing) {
-        existing.valorTrattoria += trattoriaGarcom / garcomTrattoria.length;
+        existing.valorTrattoria += trattoriaGarcom / garcomTrattoriaFuncs.length;
         existing.valor = existing.valorJapa + existing.valorTrattoria;
       } else {
-        addToResult(f, 0, trattoriaGarcom / garcomTrattoria.length);
+        addToResult(f, 0, trattoriaGarcom / garcomTrattoriaFuncs.length);
       }
     });
 
-    cozinhaJapa.forEach(f => addToResult(f, japaCozinha / cozinhaJapa.length, 0));
-    cozinhaTrattoria.forEach(f => {
+    // Cozinha Japa
+    cozinhaJapaFuncs.forEach(f => {
+      addToResult(f, japaCozinha / cozinhaJapaFuncs.length, 0);
+    });
+
+    // Cozinha Trattoria
+    cozinhaTrattoriaFuncs.forEach(f => {
       const existing = result.get(f.id);
       if (existing) {
-        existing.valorTrattoria += trattoriaCozinha / cozinhaTrattoria.length;
+        existing.valorTrattoria += trattoriaCozinha / cozinhaTrattoriaFuncs.length;
         existing.valor = existing.valorJapa + existing.valorTrattoria;
       } else {
-        addToResult(f, 0, trattoriaCozinha / cozinhaTrattoria.length);
+        addToResult(f, 0, trattoriaCozinha / cozinhaTrattoriaFuncs.length);
       }
     });
 
-    admin.forEach(f => addToResult(f, japaAdmin / admin.length, trattoriaAdmin / admin.length));
+    // Admin - recebe de ambas as frentes
+    adminFuncs.forEach(f => {
+      const valorAdmin = adminTotal / adminFuncs.length;
+      // Distribui proporcionalmente entre Japa e Trattoria
+      const propJapa = totalComissaoJapa / totalGeral;
+      const propTrattoria = totalComissaoTrattoria / totalGeral;
+      addToResult(f, valorAdmin * propJapa, valorAdmin * propTrattoria);
+    });
 
     setRateio(Array.from(result.values()).sort((a, b) => b.valor - a.valor));
   };
@@ -190,13 +261,11 @@ const Rateio = () => {
 
     try {
       if (item.pagamentoId) {
-        // Update existing
         await supabase
           .from('pagamentos_funcionarios')
           .update({ pago: newStatus })
           .eq('id', item.pagamentoId);
       } else {
-        // Create new
         await supabase.from('pagamentos_funcionarios').insert({
           user_id: user.id,
           funcionario_id: item.funcionario.id,
@@ -206,7 +275,6 @@ const Rateio = () => {
         });
       }
 
-      // Refresh data
       await fetchData();
       
       toast({
@@ -317,7 +385,48 @@ const Rateio = () => {
 
   const totalComissaoJapa = fechamentos.reduce((sum, f) => sum + Number(f.comissao_japa), 0);
   const totalComissaoTrattoria = fechamentos.reduce((sum, f) => sum + Number(f.comissao_trattoria), 0);
-  const totalGeral = totalComissaoJapa + totalComissaoTrattoria;
+
+  // Preparar dados para os componentes de resumo
+  const sectorTotalsList = [
+    { label: 'GARÇOM JAPA', value: sectorTotals.garcomJapa, colorClass: 'bg-japa-light' },
+    { label: 'COZINHA JAPA', value: sectorTotals.cozinhaJapa, colorClass: 'bg-japa-light' },
+    { label: 'GARÇOM TRATTORIA', value: sectorTotals.garcomTrattoria, colorClass: 'bg-trattoria-light' },
+    { label: 'COZINHA TRATTORIA', value: sectorTotals.cozinhaTrattoria, colorClass: 'bg-trattoria-light' },
+    { label: 'CAIXA/ADM/CUMINS', value: sectorTotals.caixaAdmCumins, colorClass: 'bg-commission-light' },
+  ];
+
+  const sectorDistributions = [
+    { 
+      setor: 'GARÇOM JAPA', 
+      quantidade: sectorCounts.garcomJapa, 
+      valorPorColaborador: sectorCounts.garcomJapa > 0 ? sectorTotals.garcomJapa / sectorCounts.garcomJapa : 0,
+      colorClass: 'bg-japa-light'
+    },
+    { 
+      setor: 'COZINHA JAPA', 
+      quantidade: sectorCounts.cozinhaJapa, 
+      valorPorColaborador: sectorCounts.cozinhaJapa > 0 ? sectorTotals.cozinhaJapa / sectorCounts.cozinhaJapa : 0,
+      colorClass: 'bg-japa-light'
+    },
+    { 
+      setor: 'GARÇOM TRATTORIA', 
+      quantidade: sectorCounts.garcomTrattoria, 
+      valorPorColaborador: sectorCounts.garcomTrattoria > 0 ? sectorTotals.garcomTrattoria / sectorCounts.garcomTrattoria : 0,
+      colorClass: 'bg-trattoria-light'
+    },
+    { 
+      setor: 'COZINHA TRATTORIA', 
+      quantidade: sectorCounts.cozinhaTrattoria, 
+      valorPorColaborador: sectorCounts.cozinhaTrattoria > 0 ? sectorTotals.cozinhaTrattoria / sectorCounts.cozinhaTrattoria : 0,
+      colorClass: 'bg-trattoria-light'
+    },
+    { 
+      setor: 'CAIXA/ADM/CUMINS', 
+      quantidade: sectorCounts.caixaAdmCumins, 
+      valorPorColaborador: sectorCounts.caixaAdmCumins > 0 ? sectorTotals.caixaAdmCumins / sectorCounts.caixaAdmCumins : 0,
+      colorClass: 'bg-commission-light'
+    },
+  ];
 
   if (authLoading) {
     return (
@@ -352,35 +461,35 @@ const Rateio = () => {
               </Button>
             </div>
             
-            <Button variant="secondary" onClick={goToCurrentWeek}>
-              Semana Atual
-            </Button>
+            <div className="flex items-center gap-2">
+              <Badge variant="secondary" className="text-sm">
+                {fechamentos.length} fechamento(s)
+              </Badge>
+              <Button variant="secondary" onClick={goToCurrentWeek}>
+                Semana Atual
+              </Button>
+            </div>
           </div>
         </div>
 
-        {/* Resumo da Semana */}
+        {/* Resumo de Comissões e Totalização - Layout igual à planilha */}
         {fechamentos.length > 0 && (
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="bg-card p-4 rounded-xl shadow-card">
-              <p className="text-sm text-muted-foreground">Fechamentos no período</p>
-              <p className="text-2xl font-bold">{fechamentos.length} dia(s)</p>
-            </div>
-            <div className="bg-card p-4 rounded-xl shadow-card">
-              <p className="text-sm text-muted-foreground">Comissão Japa</p>
-              <p className="text-2xl font-bold text-primary">{formatCurrency(totalComissaoJapa)}</p>
-            </div>
-            <div className="bg-card p-4 rounded-xl shadow-card">
-              <p className="text-sm text-muted-foreground">Comissão Trattoria</p>
-              <p className="text-2xl font-bold text-primary">{formatCurrency(totalComissaoTrattoria)}</p>
-            </div>
-            <div className="bg-card p-4 rounded-xl shadow-card">
-              <p className="text-sm text-muted-foreground">Total a Distribuir</p>
-              <p className="text-2xl font-bold text-primary">{formatCurrency(totalGeral)}</p>
-            </div>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Coluna 1: Input de comissões */}
+            <CommissionInputSummary 
+              comissaoJapa={totalComissaoJapa}
+              comissaoTrattoria={totalComissaoTrattoria}
+            />
+
+            {/* Coluna 2: Distribuição por setor com quantidade e valor por colaborador */}
+            <SectorDistributionTable distributions={sectorDistributions} />
+
+            {/* Coluna 3: Totalização por Setor */}
+            <SectorTotalsSummary totals={sectorTotalsList} />
           </div>
         )}
 
-        {/* Tabela de Rateio */}
+        {/* Tabela de Rateio Individual */}
         {isLoading ? (
           <div className="flex justify-center py-12">
             <Loader2 className="w-8 h-8 animate-spin text-primary" />
@@ -397,6 +506,9 @@ const Rateio = () => {
           </div>
         ) : (
           <div className="bg-card rounded-2xl shadow-card overflow-hidden">
+            <div className="p-4 border-b border-border">
+              <h3 className="font-semibold text-lg">Rateio Individual por Funcionário</h3>
+            </div>
             <Table>
               <TableHeader>
                 <TableRow>
