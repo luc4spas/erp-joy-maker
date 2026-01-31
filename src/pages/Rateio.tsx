@@ -48,6 +48,7 @@ interface SectorTotals {
   garcomTrattoria: number;
   cozinhaTrattoria: number;
   caixaAdmCumins: number;
+  empresa: number;
 }
 
 interface SectorCounts {
@@ -67,7 +68,8 @@ const Rateio = () => {
     cozinhaJapa: 0,
     garcomTrattoria: 0,
     cozinhaTrattoria: 0,
-    caixaAdmCumins: 0
+    caixaAdmCumins: 0,
+    empresa: 0
   });
   const [sectorCounts, setSectorCounts] = useState<SectorCounts>({
     garcomJapa: 0,
@@ -138,26 +140,34 @@ const Rateio = () => {
   ) => {
     if (fechs.length === 0) {
       setRateio([]);
-      setSectorTotals({ garcomJapa: 0, cozinhaJapa: 0, garcomTrattoria: 0, cozinhaTrattoria: 0, caixaAdmCumins: 0 });
+      setSectorTotals({ garcomJapa: 0, cozinhaJapa: 0, garcomTrattoria: 0, cozinhaTrattoria: 0, caixaAdmCumins: 0, empresa: 0 });
       setSectorCounts({ garcomJapa: 0, cozinhaJapa: 0, garcomTrattoria: 0, cozinhaTrattoria: 0, caixaAdmCumins: 0 });
       return;
     }
 
-    // Soma total das comissões da semana
+    // Soma total das comissões da semana (8% do total de vendas)
     const totalComissaoJapa = fechs.reduce((sum, f) => sum + Number(f.comissao_japa), 0);
     const totalComissaoTrattoria = fechs.reduce((sum, f) => sum + Number(f.comissao_trattoria), 0);
-    const totalGeral = totalComissaoJapa + totalComissaoTrattoria;
+    const totalComissao8Porcento = totalComissaoJapa + totalComissaoTrattoria;
+    
+    // Calcular o total de 10% (taxa de serviço completa) e os 2% da empresa
+    const totalTaxaServico = totalComissao8Porcento / 0.8; // 8% = 80% de 10%, então 10% = 8% / 0.8
+    const empresaValor = totalTaxaServico * 0.2; // 2% do total = 20% da taxa de serviço
+    
     const totalDias = fechs.length;
 
-    // Percentuais baseados na planilha de referência:
-    // Garçom: 47.5% de cada frente
-    // Cozinha: 27.5% de cada frente
-    // Admin (Caixa/ADM/Cumins): 5% do total combinado
-    const japaGarcom = totalComissaoJapa * 0.475;
-    const japaCozinha = totalComissaoJapa * 0.275;
-    const trattoriaGarcom = totalComissaoTrattoria * 0.475;
-    const trattoriaCozinha = totalComissaoTrattoria * 0.275;
-    const adminTotal = totalGeral * 0.05;
+    // Percentuais ajustados para distribuir 100% dos 8%:
+    // Original: Garçom 47.5%, Cozinha 27.5%, Admin 5% = 80%
+    // Ajustado: Garçom 59.375%, Cozinha 34.375%, Admin 6.25% = 100%
+    const percentGarcom = 0.475 / 0.8; // 59.375%
+    const percentCozinha = 0.275 / 0.8; // 34.375%
+    const percentAdmin = 0.05 / 0.8; // 6.25%
+    
+    const japaGarcom = totalComissaoJapa * percentGarcom;
+    const japaCozinha = totalComissaoJapa * percentCozinha;
+    const trattoriaGarcom = totalComissaoTrattoria * percentGarcom;
+    const trattoriaCozinha = totalComissaoTrattoria * percentCozinha;
+    const adminTotal = totalComissao8Porcento * percentAdmin;
 
     // Filtrar funcionários por setor e frente
     const garcomJapaFuncs = funcs.filter(f => f.setor === 'Garçom' && (f.frente === 'Japa' || f.frente === 'Ambas'));
@@ -181,7 +191,8 @@ const Rateio = () => {
       cozinhaJapa: japaCozinha,
       garcomTrattoria: trattoriaGarcom,
       cozinhaTrattoria: trattoriaCozinha,
-      caixaAdmCumins: adminTotal
+      caixaAdmCumins: adminTotal,
+      empresa: empresaValor
     });
 
     const result: Map<string, RateioItem> = new Map();
@@ -245,8 +256,8 @@ const Rateio = () => {
     adminFuncs.forEach(f => {
       const valorAdmin = adminTotal / adminFuncs.length;
       // Distribui proporcionalmente entre Japa e Trattoria
-      const propJapa = totalComissaoJapa / totalGeral;
-      const propTrattoria = totalComissaoTrattoria / totalGeral;
+      const propJapa = totalComissaoJapa / totalComissao8Porcento;
+      const propTrattoria = totalComissaoTrattoria / totalComissao8Porcento;
       addToResult(f, valorAdmin * propJapa, valorAdmin * propTrattoria);
     });
 
@@ -393,6 +404,8 @@ const Rateio = () => {
 
   const totalComissaoJapa = fechamentos.reduce((sum, f) => sum + Number(f.comissao_japa), 0);
   const totalComissaoTrattoria = fechamentos.reduce((sum, f) => sum + Number(f.comissao_trattoria), 0);
+  const totalComissao8 = totalComissaoJapa + totalComissaoTrattoria;
+  const totalTaxaServico10 = totalComissao8 / 0.8; // Total 10% (taxa de serviço completa)
 
   // Preparar dados para os componentes de resumo
   const sectorTotalsList = [
@@ -401,6 +414,7 @@ const Rateio = () => {
     { label: 'GARÇOM TRATTORIA', value: sectorTotals.garcomTrattoria, colorClass: 'bg-trattoria-light' },
     { label: 'COZINHA TRATTORIA', value: sectorTotals.cozinhaTrattoria, colorClass: 'bg-trattoria-light' },
     { label: 'CAIXA/ADM/CUMINS', value: sectorTotals.caixaAdmCumins, colorClass: 'bg-commission-light' },
+    { label: 'EMPRESA (2%)', value: sectorTotals.empresa, colorClass: 'bg-secondary' },
   ];
 
   const sectorDistributions = [
@@ -486,6 +500,7 @@ const Rateio = () => {
             <CommissionInputSummary 
               comissaoJapa={totalComissaoJapa}
               comissaoTrattoria={totalComissaoTrattoria}
+              totalTaxaServico={totalTaxaServico10}
             />
 
             {/* Coluna 2: Distribuição por setor com quantidade e valor por colaborador */}
