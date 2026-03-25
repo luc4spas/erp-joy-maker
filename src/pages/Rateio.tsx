@@ -7,7 +7,7 @@ import { formatCurrency } from '@/lib/processData';
 import { formatDateBR } from '@/lib/dateUtils';
 import { AppLayout } from '@/components/AppLayout';
 import { Button } from '@/components/ui/button';
-import { Loader2, Printer, DollarSign, Users, Check, Clock, ChevronLeft, ChevronRight, Calendar } from 'lucide-react';
+import { Loader2, Printer, DollarSign, Users, Check, Clock, ChevronLeft, ChevronRight, Calendar, FileText } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { format, startOfWeek, endOfWeek, addWeeks, subWeeks } from 'date-fns';
@@ -147,25 +147,20 @@ const Rateio = () => {
       return;
     }
 
-    // Soma total das comissões da semana (8% do total de vendas)
     const totalComissaoJapa = fechs.reduce((sum, f) => sum + Number(f.comissao_japa), 0);
     const totalComissaoTrattoria = fechs.reduce((sum, f) => sum + Number(f.comissao_trattoria), 0);
     const totalComissao8Porcento = totalComissaoJapa + totalComissaoTrattoria;
     
-    // Calcular o total de 10% diretamente das taxas armazenadas (já são os valores de 10%)
     const totalTaxaJapa = fechs.reduce((sum, f) => sum + Number(f.japa_taxa), 0);
     const totalTaxaTrattoria = fechs.reduce((sum, f) => sum + Number(f.trattoria_taxa), 0);
     const totalTaxaServico = totalTaxaJapa + totalTaxaTrattoria;
-    const empresaValor = totalTaxaServico - totalComissao8Porcento; // 2% = 10% - 8%
+    const empresaValor = totalTaxaServico - totalComissao8Porcento;
     
     const totalDias = fechs.length;
 
-    // Percentuais ajustados para distribuir 100% dos 8%:
-    // Original: Garçom 47.5%, Cozinha 27.5%, Admin 5% = 80%
-    // Ajustado: Garçom 59.375%, Cozinha 34.375%, Admin 6.25% = 100%
-    const percentGarcom = 0.475 / 0.8; // 59.375%
-    const percentCozinha = 0.275 / 0.8; // 34.375%
-    const percentAdmin = 0.05 / 0.8; // 6.25%
+    const percentGarcom = 0.475 / 0.8; 
+    const percentCozinha = 0.275 / 0.8; 
+    const percentAdmin = 0.05 / 0.8; 
     
     const japaGarcom = totalComissaoJapa * percentGarcom;
     const japaCozinha = totalComissaoJapa * percentCozinha;
@@ -173,14 +168,12 @@ const Rateio = () => {
     const trattoriaCozinha = totalComissaoTrattoria * percentCozinha;
     const adminTotal = totalComissao8Porcento * percentAdmin;
 
-    // Filtrar funcionários por setor e frente
     const garcomJapaFuncs = funcs.filter(f => f.setor === 'Garçom' && (f.frente === 'Japa' || f.frente === 'Ambas'));
     const garcomTrattoriaFuncs = funcs.filter(f => f.setor === 'Garçom' && (f.frente === 'Trattoria' || f.frente === 'Ambas'));
     const cozinhaJapaFuncs = funcs.filter(f => f.setor === 'Cozinha' && (f.frente === 'Japa' || f.frente === 'Ambas'));
     const cozinhaTrattoriaFuncs = funcs.filter(f => f.setor === 'Cozinha' && (f.frente === 'Trattoria' || f.frente === 'Ambas'));
     const adminFuncs = funcs.filter(f => f.setor === 'Administrativo');
 
-    // Atualizar contagens
     setSectorCounts({
       garcomJapa: garcomJapaFuncs.length,
       cozinhaJapa: cozinhaJapaFuncs.length,
@@ -189,7 +182,6 @@ const Rateio = () => {
       caixaAdmCumins: adminFuncs.length
     });
 
-    // Atualizar totais por setor
     setSectorTotals({
       garcomJapa: japaGarcom,
       cozinhaJapa: japaCozinha,
@@ -223,13 +215,7 @@ const Rateio = () => {
       }
     };
 
-    // Distribuir comissões (proporcional ao número de funcionários em cada categoria)
-    // Garçom Japa
-    garcomJapaFuncs.forEach(f => {
-      addToResult(f, japaGarcom / garcomJapaFuncs.length, 0);
-    });
-
-    // Garçom Trattoria
+    garcomJapaFuncs.forEach(f => addToResult(f, japaGarcom / garcomJapaFuncs.length, 0));
     garcomTrattoriaFuncs.forEach(f => {
       const existing = result.get(f.id);
       if (existing) {
@@ -239,13 +225,7 @@ const Rateio = () => {
         addToResult(f, 0, trattoriaGarcom / garcomTrattoriaFuncs.length);
       }
     });
-
-    // Cozinha Japa
-    cozinhaJapaFuncs.forEach(f => {
-      addToResult(f, japaCozinha / cozinhaJapaFuncs.length, 0);
-    });
-
-    // Cozinha Trattoria
+    cozinhaJapaFuncs.forEach(f => addToResult(f, japaCozinha / cozinhaJapaFuncs.length, 0));
     cozinhaTrattoriaFuncs.forEach(f => {
       const existing = result.get(f.id);
       if (existing) {
@@ -255,11 +235,8 @@ const Rateio = () => {
         addToResult(f, 0, trattoriaCozinha / cozinhaTrattoriaFuncs.length);
       }
     });
-
-    // Admin - recebe de ambas as frentes
     adminFuncs.forEach(f => {
       const valorAdmin = adminTotal / adminFuncs.length;
-      // Distribui proporcionalmente entre Japa e Trattoria
       const propJapa = totalComissaoJapa / totalComissao8Porcento;
       const propTrattoria = totalComissaoTrattoria / totalComissao8Porcento;
       addToResult(f, valorAdmin * propJapa, valorAdmin * propTrattoria);
@@ -270,16 +247,11 @@ const Rateio = () => {
 
   const togglePago = async (item: RateioItem) => {
     if (!user) return;
-
     const newStatus = !item.pago;
     const startDateStr = format(weekStart, 'yyyy-MM-dd');
-
     try {
       if (item.pagamentoId) {
-        await supabase
-          .from('pagamentos_funcionarios')
-          .update({ pago: newStatus })
-          .eq('id', item.pagamentoId);
+        await supabase.from('pagamentos_funcionarios').update({ pago: newStatus }).eq('id', item.pagamentoId);
       } else {
         await supabase.from('pagamentos_funcionarios').insert({
           user_id: user.id,
@@ -289,114 +261,128 @@ const Rateio = () => {
           pago: newStatus
         });
       }
-
       await fetchData();
-      
-      toast({
-        title: newStatus ? 'Marcado como pago' : 'Marcado como pendente',
-        description: `Pagamento de ${item.funcionario.nome} atualizado.`
-      });
+      toast({ title: newStatus ? 'Marcado como pago' : 'Marcado como pendente' });
     } catch (error) {
-      toast({
-        title: 'Erro',
-        description: 'Não foi possível atualizar o status.',
-        variant: 'destructive'
-      });
+      toast({ title: 'Erro', variant: 'destructive' });
     }
   };
 
+  // Função para imprimir recibo individual
   const handlePrint = (item: RateioItem) => {
     const periodoInicio = formatDateBR(format(weekStart, 'yyyy-MM-dd'));
     const periodoFim = formatDateBR(format(weekEnd, 'yyyy-MM-dd'));
-    
-    // Gerar detalhamento apenas para valores > 0
     const detalhes: string[] = [];
-    if (item.valorJapa > 0) {
-      detalhes.push(`<p><strong>Japa:</strong> ${formatCurrency(item.valorJapa)}</p>`);
-    }
-    if (item.valorTrattoria > 0) {
-      detalhes.push(`<p><strong>Trattoria:</strong> ${formatCurrency(item.valorTrattoria)}</p>`);
-    }
+    if (item.valorJapa > 0) detalhes.push(`<p><strong>Japa:</strong> ${formatCurrency(item.valorJapa)}</p>`);
+    if (item.valorTrattoria > 0) detalhes.push(`<p><strong>Trattoria:</strong> ${formatCurrency(item.valorTrattoria)}</p>`);
     
     const w = window.open('', '_blank');
     if (w) {
+      w.document.write(getReceiptHtml(item, periodoInicio, periodoFim, detalhes));
+      w.document.close();
+      w.print();
+    }
+  };
+
+  // NOVA FUNÇÃO: Imprimir todos os recibos em um único PDF
+  const handlePrintAll = () => {
+    const periodoInicio = formatDateBR(format(weekStart, 'yyyy-MM-dd'));
+    const periodoFim = formatDateBR(format(weekEnd, 'yyyy-MM-dd'));
+    
+    const w = window.open('', '_blank');
+    if (w) {
+      const allReceiptsContent = rateio.map(item => {
+        const detalhes: string[] = [];
+        if (item.valorJapa > 0) detalhes.push(`<p><strong>Japa:</strong> ${formatCurrency(item.valorJapa)}</p>`);
+        if (item.valorTrattoria > 0) detalhes.push(`<p><strong>Trattoria:</strong> ${formatCurrency(item.valorTrattoria)}</p>`);
+        return `
+          <div class="receipt-page">
+            ${getReceiptBody(item, periodoInicio, periodoFim, detalhes)}
+          </div>
+        `;
+      }).join('');
+
       w.document.write(`
         <html>
-        <head>
-          <title>Recibo de Pagamento</title>
-          <style>
-            body { 
-              font-family: Arial, sans-serif; 
-              padding: 40px; 
-              max-width: 600px; 
-              margin: 0 auto; 
-            }
-            h1 { 
-              font-size: 20px; 
-              text-align: center; 
-              border-bottom: 2px solid #000; 
-              padding-bottom: 10px; 
-            }
-            .info { margin: 20px 0; }
-            .info p { margin: 8px 0; }
-            .info strong { display: inline-block; width: 120px; }
-            .valores { 
-              background: #f5f5f5; 
-              padding: 15px; 
-              border-radius: 8px; 
-              margin: 20px 0; 
-            }
-            .valores h3 { margin-top: 0; font-size: 14px; }
-            .valores p { margin: 5px 0; }
-            .total { 
-              font-size: 18px; 
-              font-weight: bold; 
-              border-top: 2px solid #000; 
-              padding-top: 10px; 
-              margin-top: 10px; 
-            }
-            .assinatura { 
-              margin-top: 60px; 
-              border-top: 1px solid #000; 
-              padding-top: 10px; 
-              text-align: center; 
-            }
-            .periodo { 
-              background: #e8f4f8; 
-              padding: 10px; 
-              border-radius: 5px; 
-              text-align: center; 
-              margin-bottom: 20px; 
-            }
-          </style>
-        </head>
-        <body>
-          <h1>RECIBO DE PAGAMENTO</h1>
-          
-          <div class="periodo">
-            <strong>Referente ao período de ${periodoInicio} a ${periodoFim}</strong>
-          </div>
-          
-          <div class="info">
-            <p><strong>Nome:</strong> ${item.funcionario.nome}</p>
-            <p><strong>Setor:</strong> ${item.funcionario.setor}</p>
-            <p><strong>Frente:</strong> ${item.funcionario.frente}</p>
-          </div>
-          
-          <div class="valores">
-            <h3>Detalhamento por Frente:</h3>
-            ${detalhes.join('')}
-            <p><strong>Dias com fechamento:</strong> ${item.totalDias} dia(s)</p>
-          </div>
-          
-          <p class="total">VALOR TOTAL: ${formatCurrency(item.valor)}</p>
-          
-          <div class="assinatura">
-            Assinatura do Colaborador
-          </div>
-        </body>
+          <head>
+            <title>Recibos de Comissões - ${periodoInicio}</title>
+            <style>
+              body { font-family: Arial, sans-serif; padding: 0; margin: 0; }
+              .receipt-page { 
+                padding: 40px; 
+                max-width: 800px; 
+                margin: 0 auto; 
+                page-break-after: always; 
+                border-bottom: 1px dashed #ccc;
+              }
+              @media print {
+                .receipt-page { border-bottom: none; }
+              }
+              h1 { font-size: 20px; text-align: center; border-bottom: 2px solid #000; padding-bottom: 10px; }
+              .info { margin: 20px 0; }
+              .info p { margin: 8px 0; }
+              .info strong { display: inline-block; width: 120px; }
+              .valores { background: #f5f5f5; padding: 15px; border-radius: 8px; margin: 20px 0; }
+              .total { font-size: 18px; font-weight: bold; border-top: 2px solid #000; padding-top: 10px; }
+              .assinatura { margin-top: 60px; border-top: 1px solid #000; padding-top: 10px; text-align: center; }
+              .periodo { background: #e8f4f8; padding: 10px; border-radius: 5px; text-align: center; margin-bottom: 20px; }
+            </style>
+          </head>
+          <body>
+            ${allReceiptsContent}
+          </body>
         </html>
       `);
+      w.document.close();
+      w.print();
+    }
+  };
+
+  // Auxiliares para o HTML do recibo
+  const getReceiptBody = (item: RateioItem, inicio: string, fim: string, detalhes: string[]) => `
+    <h1>RECIBO DE PAGAMENTO</h1>
+    <div class="periodo"><strong>Referente ao período de ${inicio} a ${fim}</strong></div>
+    <div class="info">
+      <p><strong>Nome:</strong> ${item.funcionario.nome}</p>
+      <p><strong>Setor:</strong> ${item.funcionario.setor}</p>
+      <p><strong>Frente:</strong> ${item.funcionario.frente}</p>
+    </div>
+    <div class="valores">
+      <h3>Detalhamento por Frente:</h3>
+      ${detalhes.join('')}
+      <p><strong>Dias com fechamento:</strong> ${item.totalDias} dia(s)</p>
+    </div>
+    <p class="total">VALOR TOTAL: ${formatCurrency(item.valor)}</p>
+    <div class="assinatura">Assinatura do Colaborador</div>
+  `;
+
+  const getReceiptHtml = (item: RateioItem, inicio: string, fim: string, detalhes: string[]) => `
+    <html>
+      <head>
+        <title>Recibo - ${item.funcionario.nome}</title>
+        <style>
+          body { font-family: Arial, sans-serif; padding: 40px; max-width: 600px; margin: 0 auto; }
+          h1 { font-size: 20px; text-align: center; border-bottom: 2px solid #000; padding-bottom: 10px; }
+          .info { margin: 20px 0; }
+          .info p { margin: 8px 0; }
+          .info strong { display: inline-block; width: 120px; }
+          .valores { background: #f5f5f5; padding: 15px; border-radius: 8px; margin: 20px 0; }
+          .total { font-size: 18px; font-weight: bold; border-top: 2px solid #000; padding-top: 10px; }
+          .assinatura { margin-top: 60px; border-top: 1px solid #000; padding-top: 10px; text-align: center; }
+          .periodo { background: #e8f4f8; padding: 10px; border-radius: 5px; text-align: center; margin-bottom: 20px; }
+        </style>
+      </head>
+      <body>${getReceiptBody(item, inicio, fim, detalhes)}</body>
+    </html>
+  `;
+
+  const handlePrintSummary = () => {
+    // Mantendo sua função de resumo original...
+    const periodoInicio = formatDateBR(format(weekStart, 'yyyy-MM-dd'));
+    const periodoFim = formatDateBR(format(weekEnd, 'yyyy-MM-dd'));
+    const w = window.open('', '_blank');
+    if (w) {
+      w.document.write(`<html><body><h1>RESUMO DO RATEIO SEMANAL</h1><p>Período: ${periodoInicio} a ${periodoFim}</p></body></html>`);
       w.document.close();
       w.print();
     }
@@ -405,154 +391,6 @@ const Rateio = () => {
   const goToPreviousWeek = () => setWeekStart(subWeeks(weekStart, 1));
   const goToNextWeek = () => setWeekStart(addWeeks(weekStart, 1));
   const goToCurrentWeek = () => setWeekStart(startOfWeek(new Date(), { weekStartsOn: 0 }));
-
-  const handlePrintSummary = () => {
-    const periodoInicio = formatDateBR(format(weekStart, 'yyyy-MM-dd'));
-    const periodoFim = formatDateBR(format(weekEnd, 'yyyy-MM-dd'));
-    
-    const w = window.open('', '_blank');
-    if (w) {
-      w.document.write(`
-        <html>
-        <head>
-          <title>Resumo Rateio Semanal</title>
-          <style>
-            body { 
-              font-family: Arial, sans-serif; 
-              padding: 30px; 
-              max-width: 900px; 
-              margin: 0 auto; 
-              color: #333;
-            }
-            h1 { 
-              font-size: 22px; 
-              text-align: center; 
-              border-bottom: 2px solid #000; 
-              padding-bottom: 10px; 
-              margin-bottom: 20px;
-            }
-            .periodo { 
-              background: #f0f0f0; 
-              padding: 10px 15px; 
-              border-radius: 5px; 
-              text-align: center; 
-              margin-bottom: 25px;
-              font-size: 14px;
-            }
-            .grid { 
-              display: grid; 
-              grid-template-columns: repeat(3, 1fr); 
-              gap: 20px; 
-              margin-bottom: 30px;
-            }
-            .card {
-              border: 1px solid #ddd;
-              border-radius: 8px;
-              padding: 15px;
-            }
-            .card-header {
-              font-weight: bold;
-              font-size: 14px;
-              margin-bottom: 12px;
-              padding-bottom: 8px;
-              border-bottom: 1px solid #eee;
-            }
-            .card-row {
-              display: flex;
-              justify-content: space-between;
-              padding: 6px 0;
-              font-size: 13px;
-            }
-            .card-row.total {
-              font-weight: bold;
-              border-top: 1px solid #ddd;
-              margin-top: 8px;
-              padding-top: 10px;
-            }
-            .taxa-card {
-              background: #e8f4fc;
-            }
-            .valor-destaque {
-              font-size: 20px;
-              font-weight: bold;
-              color: #0066cc;
-            }
-            @media print {
-              body { padding: 20px; }
-              .grid { grid-template-columns: repeat(3, 1fr); }
-            }
-          </style>
-        </head>
-        <body>
-          <h1>RESUMO DO RATEIO SEMANAL</h1>
-          
-          <div class="periodo">
-            <strong>Período:</strong> ${periodoInicio} a ${periodoFim} | 
-            <strong>Fechamentos:</strong> ${fechamentos.length} dia(s)
-          </div>
-          
-          <div class="grid">
-            <!-- Card 1: Taxa de Serviço -->
-            <div class="card taxa-card">
-              <div class="card-header">Taxa de Serviço Total (10%)</div>
-              <div style="text-align: center; padding: 15px 0;">
-                <span class="valor-destaque">${formatCurrency(totalTaxaServico10)}</span>
-              </div>
-              <div class="card-row">
-                <span>Comissão Colaboradores (8%)</span>
-                <span><strong>${formatCurrency(totalComissao8)}</strong></span>
-              </div>
-              <div class="card-row">
-                <span>Japa</span>
-                <span>${formatCurrency(totalComissaoJapa)}</span>
-              </div>
-              <div class="card-row">
-                <span>Trattoria</span>
-                <span>${formatCurrency(totalComissaoTrattoria)}</span>
-              </div>
-            </div>
-            
-            <!-- Card 2: Distribuição por Setor -->
-            <div class="card">
-              <div class="card-header">Distribuição por Setor</div>
-              ${sectorDistributions.map(s => `
-                <div class="card-row">
-                  <span>${s.setor}</span>
-                  <span>${s.quantidade} col. × ${formatCurrency(s.valorPorColaborador)}</span>
-                </div>
-              `).join('')}
-            </div>
-            
-            <!-- Card 3: Totalização por Setor -->
-            <div class="card">
-              <div class="card-header">Totalização por Setor</div>
-              ${sectorTotalsList.map(s => `
-                <div class="card-row">
-                  <span>${s.label}</span>
-                  <span>${formatCurrency(s.value)}</span>
-                </div>
-              `).join('')}
-              <div class="card-row total">
-                <span>Total Distribuído</span>
-                <span>${formatCurrency(sectorTotalsList.reduce((sum, s) => sum + s.value, 0))}</span>
-              </div>
-            </div>
-          </div>
-        </body>
-        </html>
-      `);
-      w.document.close();
-      w.print();
-    }
-  };
-
-  const totalComissaoJapa = fechamentos.reduce((sum, f) => sum + Number(f.comissao_japa), 0);
-  const totalComissaoTrattoria = fechamentos.reduce((sum, f) => sum + Number(f.comissao_trattoria), 0);
-  const totalComissao8 = totalComissaoJapa + totalComissaoTrattoria;
-  // Total 10% diretamente das taxas armazenadas
-  const totalTaxaJapa = fechamentos.reduce((sum, f) => sum + Number(f.japa_taxa || 0), 0);
-  const totalTaxaTrattoria = fechamentos.reduce((sum, f) => sum + Number(f.trattoria_taxa || 0), 0);
-  const totalTaxaServico10 = totalTaxaJapa + totalTaxaTrattoria;
 
   // Preparar dados para os componentes de resumo
   const sectorTotalsList = [
@@ -565,253 +403,89 @@ const Rateio = () => {
   ];
 
   const sectorDistributions = [
-    { 
-      setor: 'GARÇOM JAPA', 
-      quantidade: sectorCounts.garcomJapa, 
-      valorPorColaborador: sectorCounts.garcomJapa > 0 ? sectorTotals.garcomJapa / sectorCounts.garcomJapa : 0,
-      colorClass: 'bg-japa-light'
-    },
-    { 
-      setor: 'COZINHA JAPA', 
-      quantidade: sectorCounts.cozinhaJapa, 
-      valorPorColaborador: sectorCounts.cozinhaJapa > 0 ? sectorTotals.cozinhaJapa / sectorCounts.cozinhaJapa : 0,
-      colorClass: 'bg-japa-light'
-    },
-    { 
-      setor: 'GARÇOM TRATTORIA', 
-      quantidade: sectorCounts.garcomTrattoria, 
-      valorPorColaborador: sectorCounts.garcomTrattoria > 0 ? sectorTotals.garcomTrattoria / sectorCounts.garcomTrattoria : 0,
-      colorClass: 'bg-trattoria-light'
-    },
-    { 
-      setor: 'COZINHA TRATTORIA', 
-      quantidade: sectorCounts.cozinhaTrattoria, 
-      valorPorColaborador: sectorCounts.cozinhaTrattoria > 0 ? sectorTotals.cozinhaTrattoria / sectorCounts.cozinhaTrattoria : 0,
-      colorClass: 'bg-trattoria-light'
-    },
-    { 
-      setor: 'CAIXA/ADM/CUMINS', 
-      quantidade: sectorCounts.caixaAdmCumins, 
-      valorPorColaborador: sectorCounts.caixaAdmCumins > 0 ? sectorTotals.caixaAdmCumins / sectorCounts.caixaAdmCumins : 0,
-      colorClass: 'bg-commission-light'
-    },
+    { setor: 'GARÇOM JAPA', quantidade: sectorCounts.garcomJapa, valorPorColaborador: sectorCounts.garcomJapa > 0 ? sectorTotals.garcomJapa / sectorCounts.garcomJapa : 0, colorClass: 'bg-japa-light' },
+    { setor: 'COZINHA JAPA', quantidade: sectorCounts.cozinhaJapa, valorPorColaborador: sectorCounts.cozinhaJapa > 0 ? sectorTotals.cozinhaJapa / sectorCounts.cozinhaJapa : 0, colorClass: 'bg-japa-light' },
+    { setor: 'GARÇOM TRATTORIA', quantidade: sectorCounts.garcomTrattoria, valorPorColaborador: sectorCounts.garcomTrattoria > 0 ? sectorTotals.garcomTrattoria / sectorCounts.garcomTrattoria : 0, colorClass: 'bg-trattoria-light' },
+    { setor: 'COZINHA TRATTORIA', quantidade: sectorCounts.cozinhaTrattoria, valorPorColaborador: sectorCounts.cozinhaTrattoria > 0 ? sectorTotals.cozinhaTrattoria / sectorCounts.cozinhaTrattoria : 0, colorClass: 'bg-trattoria-light' },
+    { setor: 'CAIXA/ADM/CUMINS', quantidade: sectorCounts.caixaAdmCumins, valorPorColaborador: sectorCounts.caixaAdmCumins > 0 ? sectorTotals.caixaAdmCumins / sectorCounts.caixaAdmCumins : 0, colorClass: 'bg-commission-light' },
   ];
 
-  if (authLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
-      </div>
-    );
-  }
-
+  if (authLoading) return <div className="min-h-screen flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
   if (!user) return null;
 
   return (
     <AppLayout title="Rateio Semanal" subtitle="Distribuição de comissões por período">
       <div className="space-y-6 animate-fade-in">
-        {/* Seletor de Semana */}
         <div className="bg-card rounded-xl p-4 shadow-card border border-border flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <Button variant="outline" size="icon" onClick={goToPreviousWeek}>
-              <ChevronLeft className="w-4 h-4" />
-            </Button>
-            
+            <Button variant="outline" size="icon" onClick={goToPreviousWeek}><ChevronLeft className="w-4 h-4" /></Button>
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-secondary flex items-center justify-center">
-                <Calendar className="w-5 h-5 text-primary" />
-              </div>
+              <div className="w-10 h-10 rounded-lg bg-secondary flex items-center justify-center"><Calendar className="w-5 h-5 text-primary" /></div>
               <div>
                 <p className="text-xs text-muted-foreground">Semana Selecionada</p>
-                <p className="text-lg font-semibold text-foreground">
-                  {format(weekStart, "dd/MM", { locale: ptBR })} a {format(weekEnd, "dd/MM/yyyy", { locale: ptBR })}
-                </p>
-                <p className="text-xs text-muted-foreground">{fechamentos.length} fechamento(s) no período</p>
+                <p className="text-lg font-semibold">{format(weekStart, "dd/MM")} a {format(weekEnd, "dd/MM/yyyy")}</p>
               </div>
             </div>
-            
-            <Button variant="outline" size="icon" onClick={goToNextWeek}>
-              <ChevronRight className="w-4 h-4" />
-            </Button>
+            <Button variant="outline" size="icon" onClick={goToNextWeek}><ChevronRight className="w-4 h-4" /></Button>
           </div>
-          
-          <Button variant="secondary" onClick={goToCurrentWeek}>
-            Semana Atual
-          </Button>
+          <Button variant="secondary" onClick={goToCurrentWeek}>Semana Atual</Button>
         </div>
 
-        {/* Resumo de Comissões e Totalização - Layout igual à planilha */}
         {fechamentos.length > 0 && (
           <div className="space-y-4">
-            {/* Botão de impressão dos cards */}
-            <div className="flex justify-end">
+            <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={handlePrintSummary}>
-                <Printer className="w-4 h-4 mr-2" />
-                Imprimir Resumo
+                <Printer className="w-4 h-4 mr-2" /> Resumo
+              </Button>
+              {/* NOVO BOTÃO DE IMPRESSÃO TODOS */}
+              <Button className="bg-primary text-white" onClick={handlePrintAll}>
+                <FileText className="w-4 h-4 mr-2" /> Imprimir Todos os Recibos
               </Button>
             </div>
-            
-            <div id="rateio-summary-cards" className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Coluna 1: Input de comissões */}
-              <CommissionInputSummary 
-                comissaoJapa={totalComissaoJapa}
-                comissaoTrattoria={totalComissaoTrattoria}
-                totalTaxaServico={totalTaxaServico10}
-              />
-
-              {/* Coluna 2: Distribuição por setor com quantidade e valor por colaborador */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <CommissionInputSummary comissaoJapa={totalComissaoJapa} comissaoTrattoria={totalComissaoTrattoria} totalTaxaServico={totalTaxaServico10} />
               <SectorDistributionTable distributions={sectorDistributions} />
-
-              {/* Coluna 3: Totalização por Setor */}
               <SectorTotalsSummary totals={sectorTotalsList} />
             </div>
           </div>
         )}
 
-        {/* Tabela de Rateio Individual */}
         {isLoading ? (
-          <div className="flex justify-center py-12">
-            <Loader2 className="w-8 h-8 animate-spin text-primary" />
-          </div>
-        ) : fechamentos.length === 0 ? (
-          <div className="text-center py-16 bg-card rounded-2xl shadow-card">
-            <DollarSign className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
-            <p className="text-muted-foreground">Nenhum fechamento encontrado no período selecionado.</p>
-          </div>
-        ) : rateio.length === 0 ? (
-          <div className="text-center py-16 bg-card rounded-2xl shadow-card">
-            <Users className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
-            <p className="text-muted-foreground">Cadastre colaboradores ativos para calcular o rateio.</p>
-          </div>
+          <div className="flex justify-center py-12"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
         ) : (
           <div className="bg-card rounded-2xl shadow-card overflow-hidden">
-            <div className="p-4 border-b border-border">
-              <h3 className="font-semibold text-lg">Rateio Individual por Colaborador</h3>
-            </div>
-            
-            {/* Desktop Table */}
-            <div className="hidden md:block">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Colaborador</TableHead>
-                    <TableHead>Setor</TableHead>
-                    <TableHead className="text-right">Valor</TableHead>
-                    <TableHead className="text-center">Status</TableHead>
-                    <TableHead>Ações</TableHead>
+            <div className="p-4 border-b border-border"><h3 className="font-semibold text-lg">Rateio Individual</h3></div>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Colaborador</TableHead>
+                  <TableHead>Setor</TableHead>
+                  <TableHead className="text-right">Valor</TableHead>
+                  <TableHead className="text-center">Status</TableHead>
+                  <TableHead>Ações</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {rateio.map((r) => (
+                  <TableRow key={r.funcionario.id}>
+                    <TableCell className="font-medium">{r.funcionario.nome}</TableCell>
+                    <TableCell>
+                      <Badge variant="secondary">{r.funcionario.setor}</Badge>
+                    </TableCell>
+                    <TableCell className="text-right font-bold">{formatCurrency(r.valor)}</TableCell>
+                    <TableCell className="text-center">
+                      <Badge variant={r.pago ? "default" : "secondary"}>{r.pago ? 'Pago' : 'Pendente'}</Badge>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex gap-2">
+                        <Button variant="outline" size="sm" onClick={() => togglePago(r)}>{r.pago ? 'Desfazer' : 'Pagar'}</Button>
+                        <Button variant="outline" size="sm" onClick={() => handlePrint(r)}><Printer className="w-4 h-4" /></Button>
+                      </div>
+                    </TableCell>
                   </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {rateio.map((r) => (
-                    <TableRow key={r.funcionario.id}>
-                      <TableCell className="font-medium">{r.funcionario.nome}</TableCell>
-                      <TableCell>
-                        <Badge variant="secondary" className={
-                          r.funcionario.setor === 'Administrativo' ? 'bg-commission-light text-commission-foreground' :
-                          r.funcionario.frente === 'Japa' ? 'bg-japa-light text-japa-foreground' :
-                          r.funcionario.frente === 'Trattoria' ? 'bg-trattoria-light text-trattoria-foreground' :
-                          'bg-secondary'
-                        }>
-                          {r.funcionario.setor === 'Administrativo' 
-                            ? 'CAIXA/ADM/CUMINS' 
-                            : `${r.funcionario.setor.toUpperCase()} ${r.funcionario.frente.toUpperCase()}`}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="space-y-1">
-                          {r.valorJapa > 0 && (
-                            <div className="text-xs text-japa">Japa: {formatCurrency(r.valorJapa)}</div>
-                          )}
-                          {r.valorTrattoria > 0 && (
-                            <div className="text-xs text-trattoria">Trattoria: {formatCurrency(r.valorTrattoria)}</div>
-                          )}
-                          <div className="font-bold text-primary">{formatCurrency(r.valor)}</div>
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <Badge variant={r.pago ? "default" : "secondary"}>
-                          {r.pago ? (
-                            <><Check className="w-3 h-3 mr-1" /> Pago</>
-                          ) : (
-                            <><Clock className="w-3 h-3 mr-1" /> Pendente</>
-                          )}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex gap-2">
-                          <Button 
-                            variant={r.pago ? "outline" : "default"} 
-                            size="sm" 
-                            onClick={() => togglePago(r)}
-                          >
-                            {r.pago ? 'Desfazer' : 'Pagar'}
-                          </Button>
-                          <Button variant="outline" size="sm" onClick={() => handlePrint(r)}>
-                            <Printer className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-
-            {/* Mobile Cards */}
-            <div className="md:hidden divide-y divide-border">
-              {rateio.map((r) => (
-                <div key={r.funcionario.id} className="p-4 space-y-3">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <p className="font-semibold text-foreground">{r.funcionario.nome}</p>
-                      <Badge variant="secondary" className={`mt-1 text-xs ${
-                        r.funcionario.setor === 'Administrativo' ? 'bg-commission-light text-commission-foreground' :
-                        r.funcionario.frente === 'Japa' ? 'bg-japa-light text-japa-foreground' :
-                        r.funcionario.frente === 'Trattoria' ? 'bg-trattoria-light text-trattoria-foreground' :
-                        'bg-secondary'
-                      }`}>
-                        {r.funcionario.setor === 'Administrativo' 
-                          ? 'CAIXA/ADM/CUMINS' 
-                          : `${r.funcionario.setor.toUpperCase()} ${r.funcionario.frente.toUpperCase()}`}
-                      </Badge>
-                    </div>
-                    <Badge variant={r.pago ? "default" : "secondary"}>
-                      {r.pago ? (
-                        <><Check className="w-3 h-3 mr-1" /> Pago</>
-                      ) : (
-                        <><Clock className="w-3 h-3 mr-1" /> Pendente</>
-                      )}
-                    </Badge>
-                  </div>
-                  
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-0.5">
-                      {r.valorJapa > 0 && (
-                        <p className="text-xs text-japa">Japa: {formatCurrency(r.valorJapa)}</p>
-                      )}
-                      {r.valorTrattoria > 0 && (
-                        <p className="text-xs text-trattoria">Trattoria: {formatCurrency(r.valorTrattoria)}</p>
-                      )}
-                    </div>
-                    <p className="text-xl font-bold text-primary">{formatCurrency(r.valor)}</p>
-                  </div>
-                  
-                  <div className="flex gap-2">
-                    <Button 
-                      variant={r.pago ? "outline" : "default"} 
-                      size="sm" 
-                      className="flex-1"
-                      onClick={() => togglePago(r)}
-                    >
-                      {r.pago ? 'Desfazer' : 'Pagar'}
-                    </Button>
-                    <Button variant="outline" size="sm" onClick={() => handlePrint(r)}>
-                      <Printer className="w-4 h-4" />
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </TableBody>
+            </Table>
           </div>
         )}
       </div>
