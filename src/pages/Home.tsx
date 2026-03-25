@@ -220,7 +220,7 @@ const Home = () => {
 
             <ConsolidatedPaymentTable
               trattoria={summary.trattoria} japa={summary.japa}
-              hippocampus={summary.hasHippocampus ? summary.hippocampus : undefined}
+              hippocampus={summary.hippocampus}
               title="Consolidado de Pagamentos"
               subtitle="Soma acumulada por método de recebimento no período"
             />
