@@ -75,7 +75,7 @@ export function SaveHistoryButton({ data }: SaveHistoryButtonProps) {
         payload.pagamentos_hippocampus = pagamentosHippocampus;
       }
 
-      const { error } = await supabase.from('fechamentos').insert(payload);
+      const { error } = await supabase.from('fechamentos').insert(payload as any);
       if (error) throw error;
 
       setIsSaved(true);
