@@ -190,15 +190,13 @@ const FechamentoDetalhes = () => {
           </div>
 
           {/* Restaurant Cards */}
-          <div className={`grid gap-6 ${dashboardData.hasHippocampus ? 'md:grid-cols-3' : 'md:grid-cols-2'}`}>
+          <div className="grid gap-6 md:grid-cols-3">
             <SummaryCard restaurante="TRATTORIA" totalValor={dashboardData.trattoria.totalValor} totalAcrescimo={dashboardData.trattoria.totalAcrescimo} totalGeral={dashboardData.trattoria.totalGeral} comissaoGarcom={dashboardData.trattoria.comissaoGarcom} />
             <SummaryCard restaurante="JAPA" totalValor={dashboardData.japa.totalValor} totalAcrescimo={dashboardData.japa.totalAcrescimo} totalGeral={dashboardData.japa.totalGeral} comissaoGarcom={dashboardData.japa.comissaoGarcom} />
-            {dashboardData.hasHippocampus && (
-              <SummaryCard restaurante="HIPPOCAMPUS" totalValor={dashboardData.hippocampus.totalValor} totalAcrescimo={dashboardData.hippocampus.totalAcrescimo} totalGeral={dashboardData.hippocampus.totalGeral} comissaoGarcom={dashboardData.hippocampus.comissaoGarcom} />
-            )}
+            <SummaryCard restaurante="HIPPOCAMPUS" totalValor={dashboardData.hippocampus.totalValor} totalAcrescimo={dashboardData.hippocampus.totalAcrescimo} totalGeral={dashboardData.hippocampus.totalGeral} comissaoGarcom={dashboardData.hippocampus.comissaoGarcom} />
           </div>
 
-          <PaymentTable trattoria={dashboardData.trattoria} japa={dashboardData.japa} hippocampus={dashboardData.hasHippocampus ? dashboardData.hippocampus : undefined} />
+          <PaymentTable trattoria={dashboardData.trattoria} japa={dashboardData.japa} hippocampus={dashboardData.hippocampus} />
         </div>
       </main>
     </div>

@@ -39,11 +39,16 @@ interface Fechamento {
   trattoria_total: number;
   trattoria_taxa: number;
   trattoria_valor_itens: number;
+  hippocampus_total: number;
+  hippocampus_taxa: number;
+  hippocampus_valor_itens: number;
   total_geral: number;
   comissao_japa: number;
   comissao_trattoria: number;
+  comissao_hippocampus: number;
   pagamentos_japa: Record<string, number>;
   pagamentos_trattoria: Record<string, number>;
+  pagamentos_hippocampus: Record<string, number> | null;
   created_at: string;
 }
 
@@ -171,8 +176,9 @@ const Historico = () => {
               <TableHeader>
                 <TableRow>
                   <TableHead>Data</TableHead>
-                  <TableHead className="text-right">Trattoria Total</TableHead>
-                  <TableHead className="text-right">Japa Total</TableHead>
+                  <TableHead className="text-right">Trattoria</TableHead>
+                  <TableHead className="text-right">Japa</TableHead>
+                  <TableHead className="text-right">Hippocampus</TableHead>
                   <TableHead className="text-right">Total Geral</TableHead>
                   <TableHead className="w-[120px]">Ações</TableHead>
                 </TableRow>
@@ -188,6 +194,9 @@ const Historico = () => {
                     </TableCell>
                     <TableCell className="text-right text-japa-foreground">
                       {formatCurrency(Number(fechamento.japa_total))}
+                    </TableCell>
+                    <TableCell className="text-right text-hippocampus-foreground">
+                      {formatCurrency(Number(fechamento.hippocampus_total || 0))}
                     </TableCell>
                     <TableCell className="text-right font-semibold">
                       {formatCurrency(Number(fechamento.total_geral))}
