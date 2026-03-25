@@ -50,7 +50,7 @@ Deno.serve(async (req) => {
     }
 
     if (action === "create") {
-      const { email, password, nome, unidade, cargo } = payload;
+      const { email, password, nome, unidade, cargo, group_id } = payload;
       const { data: newUser, error: createError } = await supabase.auth.admin.createUser({
         email,
         password,
@@ -59,9 +59,15 @@ Deno.serve(async (req) => {
       });
       if (createError) throw createError;
 
-      await supabase.from("profiles").update({ unidade, cargo }).eq("user_id", newUser.user!.id);
+      const userId = newUser.user!.id;
+      await supabase.from("profiles").update({ unidade, cargo }).eq("user_id", userId);
 
-      return new Response(JSON.stringify({ success: true, user_id: newUser.user!.id }), {
+      // Assign access group if provided
+      if (group_id) {
+        await supabase.from("user_access_groups").insert({ user_id: userId, group_id });
+      }
+
+      return new Response(JSON.stringify({ success: true, user_id: userId }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
