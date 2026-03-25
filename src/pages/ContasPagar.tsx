@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { usePermissions } from '@/hooks/usePermissions';
 import { useToast } from '@/hooks/use-toast';
 import { AppLayout } from '@/components/AppLayout';
 import { Button } from '@/components/ui/button';
@@ -12,7 +13,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Plus, Loader2, FileText, Filter, Eye, Pencil, Trash2 } from 'lucide-react';
+import { Plus, Loader2, FileText, Eye, Trash2 } from 'lucide-react';
 import { format, addMonths, setDate } from 'date-fns';
 import { formatCurrency } from '@/lib/processData';
 import { NovoFornecedorDialog } from '@/components/contas-pagar/NovoFornecedorDialog';
@@ -44,6 +45,7 @@ interface Parcela {
 
 export default function ContasPagar() {
   const { user } = useAuth();
+  const { hasPermission } = usePermissions();
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState('listagem');
   const [contas, setContas] = useState<ContaPagar[]>([]);
@@ -54,41 +56,29 @@ export default function ContasPagar() {
   const [selectedContaParcelas, setSelectedContaParcelas] = useState<Parcela[]>([]);
   const [selectedContaId, setSelectedContaId] = useState<string>('');
 
-  // For title generation
+  const canCreate = hasPermission('contas_pagar', 'create');
+  const canEdit = hasPermission('contas_pagar', 'edit');
+  const canDelete = hasPermission('contas_pagar', 'delete');
+
   const [empresas, setEmpresas] = useState<{ id: string; nome: string }[]>([]);
   const [fornecedores, setFornecedores] = useState<{ id: string; nome: string }[]>([]);
   const [fornecedorDialogOpen, setFornecedorDialogOpen] = useState(false);
 
-  // Form state for new title
   const [formData, setFormData] = useState({
-    empresa_id: '',
-    fornecedor_id: '',
-    numero_documento: '',
-    valor_total: '',
-    num_parcelas: '1',
-    dia_vencimento: '',
-    categoria: '',
-    centro_custo: '',
+    empresa_id: '', fornecedor_id: '', numero_documento: '', valor_total: '',
+    num_parcelas: '1', dia_vencimento: '', categoria: '', centro_custo: '',
   });
   const [generatedParcelas, setGeneratedParcelas] = useState<{ numero: number; valor: number; data_vencimento: string }[]>([]);
   const [showPreview, setShowPreview] = useState(false);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (user) {
-      fetchContas();
-      fetchEmpresas();
-      fetchFornecedores();
-    }
+    if (user) { fetchContas(); fetchEmpresas(); fetchFornecedores(); }
   }, [user]);
 
   const fetchContas = async () => {
     setLoading(true);
-    const { data } = await supabase
-      .from('contas_pagar')
-      .select('*, fornecedores(nome), empresas(nome)')
-      .eq('user_id', user!.id)
-      .order('created_at', { ascending: false });
+    const { data } = await supabase.from('contas_pagar').select('*, fornecedores(nome), empresas(nome)').eq('user_id', user!.id).order('created_at', { ascending: false });
     setContas((data as any) || []);
     setLoading(false);
   };
@@ -107,24 +97,16 @@ export default function ContasPagar() {
     const valorTotal = parseFloat(formData.valor_total.replace(/[^\d.,]/g, '').replace(',', '.'));
     const numParcelas = parseInt(formData.num_parcelas);
     const diaVenc = parseInt(formData.dia_vencimento) || 1;
-
     if (!valorTotal || !numParcelas || !formData.empresa_id || !formData.fornecedor_id) {
       toast({ title: 'Erro', description: 'Preencha todos os campos obrigatórios.', variant: 'destructive' });
       return;
     }
-
     const valorParcela = Math.floor((valorTotal / numParcelas) * 100) / 100;
     const resto = Math.round((valorTotal - valorParcela * numParcelas) * 100) / 100;
-
     const parcelas = Array.from({ length: numParcelas }, (_, i) => {
       const dataVenc = setDate(addMonths(new Date(), i + 1), Math.min(diaVenc, 28));
-      return {
-        numero: i + 1,
-        valor: i === 0 ? valorParcela + resto : valorParcela,
-        data_vencimento: format(dataVenc, 'yyyy-MM-dd'),
-      };
+      return { numero: i + 1, valor: i === 0 ? valorParcela + resto : valorParcela, data_vencimento: format(dataVenc, 'yyyy-MM-dd') };
     });
-
     setGeneratedParcelas(parcelas);
     setShowPreview(true);
   };
@@ -132,11 +114,8 @@ export default function ContasPagar() {
   const handleUpdateParcela = (index: number, field: 'valor' | 'data_vencimento', value: string) => {
     setGeneratedParcelas(prev => {
       const updated = [...prev];
-      if (field === 'valor') {
-        updated[index] = { ...updated[index], valor: parseFloat(value) || 0 };
-      } else {
-        updated[index] = { ...updated[index], data_vencimento: value };
-      }
+      if (field === 'valor') updated[index] = { ...updated[index], valor: parseFloat(value) || 0 };
+      else updated[index] = { ...updated[index], data_vencimento: value };
       return updated;
     });
   };
@@ -144,55 +123,31 @@ export default function ContasPagar() {
   const handleSaveTitulo = async () => {
     if (!user) return;
     setSaving(true);
-
     try {
       const valorTotal = parseFloat(formData.valor_total.replace(/[^\d.,]/g, '').replace(',', '.'));
-
       const { data: conta, error } = await supabase.from('contas_pagar').insert({
-        user_id: user.id,
-        empresa_id: formData.empresa_id,
-        fornecedor_id: formData.fornecedor_id,
-        numero_documento: formData.numero_documento || null,
-        valor_total: valorTotal,
-        num_parcelas: parseInt(formData.num_parcelas),
-        dia_vencimento: parseInt(formData.dia_vencimento) || null,
-        categoria: formData.categoria || null,
-        centro_custo: formData.centro_custo || null,
+        user_id: user.id, empresa_id: formData.empresa_id, fornecedor_id: formData.fornecedor_id,
+        numero_documento: formData.numero_documento || null, valor_total: valorTotal,
+        num_parcelas: parseInt(formData.num_parcelas), dia_vencimento: parseInt(formData.dia_vencimento) || null,
+        categoria: formData.categoria || null, centro_custo: formData.centro_custo || null,
       }).select().single();
-
       if (error) throw error;
-
       const parcelasInsert = generatedParcelas.map(p => ({
-        conta_pagar_id: conta.id,
-        user_id: user.id,
-        numero_parcela: p.numero,
-        valor_original: p.valor,
-        data_vencimento: p.data_vencimento,
-        status: 'pendente' as const,
+        conta_pagar_id: conta.id, user_id: user.id, numero_parcela: p.numero,
+        valor_original: p.valor, data_vencimento: p.data_vencimento, status: 'pendente' as const,
       }));
-
       const { error: parcelasError } = await supabase.from('parcelas_pagar').insert(parcelasInsert);
       if (parcelasError) throw parcelasError;
-
       toast({ title: 'Título gerado com sucesso!' });
       setFormData({ empresa_id: '', fornecedor_id: '', numero_documento: '', valor_total: '', num_parcelas: '1', dia_vencimento: '', categoria: '', centro_custo: '' });
-      setGeneratedParcelas([]);
-      setShowPreview(false);
-      setActiveTab('listagem');
-      fetchContas();
+      setGeneratedParcelas([]); setShowPreview(false); setActiveTab('listagem'); fetchContas();
     } catch (error: any) {
       toast({ title: 'Erro', description: error.message, variant: 'destructive' });
-    } finally {
-      setSaving(false);
-    }
+    } finally { setSaving(false); }
   };
 
   const viewParcelas = async (contaId: string) => {
-    const { data } = await supabase
-      .from('parcelas_pagar')
-      .select('*')
-      .eq('conta_pagar_id', contaId)
-      .order('numero_parcela');
+    const { data } = await supabase.from('parcelas_pagar').select('*').eq('conta_pagar_id', contaId).order('numero_parcela');
     setSelectedContaParcelas((data as any) || []);
     setSelectedContaId(contaId);
     setParcelasDialog(true);
@@ -203,11 +158,7 @@ export default function ContasPagar() {
     if (status === 'pago') {
       updateData.data_pagamento = format(new Date(), 'yyyy-MM-dd');
       if (valorPago !== undefined) updateData.valor_pago = valorPago;
-    } else {
-      updateData.data_pagamento = null;
-      updateData.valor_pago = 0;
-    }
-
+    } else { updateData.data_pagamento = null; updateData.valor_pago = 0; }
     await supabase.from('parcelas_pagar').update(updateData).eq('id', parcelaId);
     viewParcelas(selectedContaId);
     toast({ title: 'Parcela atualizada!' });
@@ -221,11 +172,7 @@ export default function ContasPagar() {
   };
 
   const statusBadge = (status: string) => {
-    const variants: Record<string, string> = {
-      pendente: 'bg-yellow-100 text-yellow-800',
-      pago: 'bg-green-100 text-green-800',
-      atrasado: 'bg-red-100 text-red-800',
-    };
+    const variants: Record<string, string> = { pendente: 'bg-yellow-100 text-yellow-800', pago: 'bg-green-100 text-green-800', atrasado: 'bg-red-100 text-red-800' };
     const labels: Record<string, string> = { pendente: 'Pendente', pago: 'Pago', atrasado: 'Atrasado' };
     return <Badge className={variants[status] || ''}>{labels[status] || status}</Badge>;
   };
@@ -235,21 +182,17 @@ export default function ContasPagar() {
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="mb-6">
           <TabsTrigger value="listagem">Listagem</TabsTrigger>
-          <TabsTrigger value="novo">Gerar Título</TabsTrigger>
+          {canCreate && <TabsTrigger value="novo">Gerar Título</TabsTrigger>}
         </TabsList>
 
         <TabsContent value="listagem">
           <Card>
             <CardHeader>
               <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <FileText className="w-5 h-5" /> Títulos
-                </CardTitle>
+                <CardTitle className="text-lg flex items-center gap-2"><FileText className="w-5 h-5" /> Títulos</CardTitle>
                 <div className="flex gap-2 flex-wrap">
                   <Select value={filterStatus} onValueChange={setFilterStatus}>
-                    <SelectTrigger className="w-[140px]">
-                      <SelectValue placeholder="Status" />
-                    </SelectTrigger>
+                    <SelectTrigger className="w-[140px]"><SelectValue placeholder="Status" /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="todos">Todos</SelectItem>
                       <SelectItem value="pendente">Pendente</SelectItem>
@@ -257,12 +200,7 @@ export default function ContasPagar() {
                       <SelectItem value="atrasado">Atrasado</SelectItem>
                     </SelectContent>
                   </Select>
-                  <Input
-                    placeholder="Filtrar fornecedor..."
-                    value={filterFornecedor}
-                    onChange={e => setFilterFornecedor(e.target.value)}
-                    className="w-[200px]"
-                  />
+                  <Input placeholder="Filtrar fornecedor..." value={filterFornecedor} onChange={e => setFilterFornecedor(e.target.value)} className="w-[200px]" />
                 </div>
               </div>
             </CardHeader>
@@ -298,12 +236,8 @@ export default function ContasPagar() {
                             <TableCell>{conta.categoria || '-'}</TableCell>
                             <TableCell>
                               <div className="flex justify-center gap-1">
-                                <Button variant="ghost" size="sm" onClick={() => viewParcelas(conta.id)}>
-                                  <Eye className="w-4 h-4" />
-                                </Button>
-                                <Button variant="ghost" size="sm" onClick={() => deleteConta(conta.id)}>
-                                  <Trash2 className="w-4 h-4" />
-                                </Button>
+                                <Button variant="ghost" size="sm" onClick={() => viewParcelas(conta.id)}><Eye className="w-4 h-4" /></Button>
+                                {canDelete && <Button variant="ghost" size="sm" onClick={() => deleteConta(conta.id)}><Trash2 className="w-4 h-4" /></Button>}
                               </div>
                             </TableCell>
                           </TableRow>
@@ -316,34 +250,20 @@ export default function ContasPagar() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="novo">
-          {!showPreview ? (
-            <GerarTituloForm
-              formData={formData}
-              setFormData={setFormData}
-              empresas={empresas}
-              fornecedores={fornecedores}
-              onGenerateParcelas={handleGenerateParcelas}
-              onAddFornecedor={() => setFornecedorDialogOpen(true)}
-            />
-          ) : (
-            <ParcelasPreview
-              parcelas={generatedParcelas}
-              onUpdateParcela={handleUpdateParcela}
-              onSave={handleSaveTitulo}
-              onBack={() => setShowPreview(false)}
-              saving={saving}
-            />
-          )}
-        </TabsContent>
+        {canCreate && (
+          <TabsContent value="novo">
+            {!showPreview ? (
+              <GerarTituloForm formData={formData} setFormData={setFormData} empresas={empresas} fornecedores={fornecedores} onGenerateParcelas={handleGenerateParcelas} onAddFornecedor={() => setFornecedorDialogOpen(true)} />
+            ) : (
+              <ParcelasPreview parcelas={generatedParcelas} onUpdateParcela={handleUpdateParcela} onSave={handleSaveTitulo} onBack={() => setShowPreview(false)} saving={saving} />
+            )}
+          </TabsContent>
+        )}
       </Tabs>
 
-      {/* Parcelas Detail Dialog */}
       <Dialog open={parcelasDialog} onOpenChange={setParcelasDialog}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Parcelas</DialogTitle>
-          </DialogHeader>
+          <DialogHeader><DialogTitle>Parcelas</DialogTitle></DialogHeader>
           <Table>
             <TableHeader>
               <TableRow>
@@ -353,7 +273,7 @@ export default function ContasPagar() {
                 <TableHead className="text-right">Pago</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Pagamento</TableHead>
-                <TableHead>Ações</TableHead>
+                {canEdit && <TableHead>Ações</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -365,20 +285,14 @@ export default function ContasPagar() {
                   <TableCell className="text-right">{p.valor_pago ? formatCurrency(p.valor_pago) : '-'}</TableCell>
                   <TableCell>{statusBadge(p.status)}</TableCell>
                   <TableCell>{p.data_pagamento ? format(new Date(p.data_pagamento + 'T12:00:00'), 'dd/MM/yyyy') : '-'}</TableCell>
-                  <TableCell>
-                    <div className="flex gap-1">
-                      {p.status !== 'pago' && (
-                        <Button variant="outline" size="sm" onClick={() => updateParcelaStatus(p.id, 'pago', p.valor_original)}>
-                          Pagar
-                        </Button>
-                      )}
-                      {p.status === 'pago' && (
-                        <Button variant="outline" size="sm" onClick={() => updateParcelaStatus(p.id, 'pendente')}>
-                          Estornar
-                        </Button>
-                      )}
-                    </div>
-                  </TableCell>
+                  {canEdit && (
+                    <TableCell>
+                      <div className="flex gap-1">
+                        {p.status !== 'pago' && <Button variant="outline" size="sm" onClick={() => updateParcelaStatus(p.id, 'pago', p.valor_original)}>Pagar</Button>}
+                        {p.status === 'pago' && <Button variant="outline" size="sm" onClick={() => updateParcelaStatus(p.id, 'pendente')}>Estornar</Button>}
+                      </div>
+                    </TableCell>
+                  )}
                 </TableRow>
               ))}
             </TableBody>
@@ -386,12 +300,7 @@ export default function ContasPagar() {
         </DialogContent>
       </Dialog>
 
-      {/* Novo Fornecedor Dialog */}
-      <NovoFornecedorDialog
-        open={fornecedorDialogOpen}
-        onOpenChange={setFornecedorDialogOpen}
-        onSaved={() => { fetchFornecedores(); setFornecedorDialogOpen(false); }}
-      />
+      <NovoFornecedorDialog open={fornecedorDialogOpen} onOpenChange={setFornecedorDialogOpen} onSaved={() => { fetchFornecedores(); setFornecedorDialogOpen(false); }} />
     </AppLayout>
   );
 }

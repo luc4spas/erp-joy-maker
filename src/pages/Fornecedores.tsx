@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { usePermissions } from '@/hooks/usePermissions';
 import { useToast } from '@/hooks/use-toast';
 import { AppLayout } from '@/components/AppLayout';
 import { Button } from '@/components/ui/button';
@@ -26,12 +27,17 @@ interface Fornecedor {
 
 export default function Fornecedores() {
   const { user } = useAuth();
+  const { hasPermission } = usePermissions();
   const { toast } = useToast();
   const [fornecedores, setFornecedores] = useState<Fornecedor[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Fornecedor | null>(null);
   const [form, setForm] = useState({ nome: '', cnpj_cpf: '', telefone: '', email: '', banco: '', agencia: '', conta: '' });
+
+  const canCreate = hasPermission('contas_pagar', 'create');
+  const canEdit = hasPermission('contas_pagar', 'edit');
+  const canDelete = hasPermission('contas_pagar', 'delete');
 
   useEffect(() => { if (user) fetchFornecedores(); }, [user]);
 
@@ -57,13 +63,8 @@ export default function Fornecedores() {
     if (!form.nome.trim() || !user) return;
     try {
       const data = {
-        nome: form.nome,
-        cnpj_cpf: form.cnpj_cpf || null,
-        telefone: form.telefone || null,
-        email: form.email || null,
-        banco: form.banco || null,
-        agencia: form.agencia || null,
-        conta: form.conta || null,
+        nome: form.nome, cnpj_cpf: form.cnpj_cpf || null, telefone: form.telefone || null,
+        email: form.email || null, banco: form.banco || null, agencia: form.agencia || null, conta: form.conta || null,
       };
       if (editing) {
         await supabase.from('fornecedores').update(data).eq('id', editing.id);
@@ -97,21 +98,16 @@ export default function Fornecedores() {
   return (
     <AppLayout title="Fornecedores" subtitle="Cadastro de fornecedores">
       <div className="space-y-6">
-        <div className="flex justify-end">
-          <Button onClick={() => openDialog()}>
-            <Plus className="w-4 h-4 mr-2" /> Novo Fornecedor
-          </Button>
-        </div>
+        {canCreate && (
+          <div className="flex justify-end">
+            <Button onClick={() => openDialog()}><Plus className="w-4 h-4 mr-2" /> Novo Fornecedor</Button>
+          </div>
+        )}
 
         {loading ? (
           <div className="flex justify-center py-12"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
         ) : fornecedores.length === 0 ? (
-          <Card>
-            <CardContent className="py-12 text-center">
-              <Truck className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-              <p className="text-muted-foreground">Nenhum fornecedor cadastrado.</p>
-            </CardContent>
-          </Card>
+          <Card><CardContent className="py-12 text-center"><Truck className="w-12 h-12 text-muted-foreground mx-auto mb-4" /><p className="text-muted-foreground">Nenhum fornecedor cadastrado.</p></CardContent></Card>
         ) : (
           <Card>
             <CardContent className="pt-6">
@@ -124,7 +120,7 @@ export default function Fornecedores() {
                       <TableHead>Contato</TableHead>
                       <TableHead>Banco</TableHead>
                       <TableHead>Status</TableHead>
-                      <TableHead className="text-center">Ações</TableHead>
+                      {(canEdit || canDelete) && <TableHead className="text-center">Ações</TableHead>}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -135,16 +131,18 @@ export default function Fornecedores() {
                         <TableCell className="text-sm">{f.telefone || f.email || '-'}</TableCell>
                         <TableCell className="text-sm">{f.banco ? `${f.banco} Ag:${f.agencia} Cc:${f.conta}` : '-'}</TableCell>
                         <TableCell>
-                          <Badge className="cursor-pointer" variant={f.ativo ? 'default' : 'secondary'} onClick={() => toggleAtivo(f)}>
+                          <Badge className="cursor-pointer" variant={f.ativo ? 'default' : 'secondary'} onClick={() => canEdit && toggleAtivo(f)}>
                             {f.ativo ? 'Ativo' : 'Inativo'}
                           </Badge>
                         </TableCell>
-                        <TableCell>
-                          <div className="flex justify-center gap-1">
-                            <Button variant="ghost" size="sm" onClick={() => openDialog(f)}><Pencil className="w-4 h-4" /></Button>
-                            <Button variant="ghost" size="sm" onClick={() => handleDelete(f.id)}><Trash2 className="w-4 h-4" /></Button>
-                          </div>
-                        </TableCell>
+                        {(canEdit || canDelete) && (
+                          <TableCell>
+                            <div className="flex justify-center gap-1">
+                              {canEdit && <Button variant="ghost" size="sm" onClick={() => openDialog(f)}><Pencil className="w-4 h-4" /></Button>}
+                              {canDelete && <Button variant="ghost" size="sm" onClick={() => handleDelete(f.id)}><Trash2 className="w-4 h-4" /></Button>}
+                            </div>
+                          </TableCell>
+                        )}
                       </TableRow>
                     ))}
                   </TableBody>
@@ -157,9 +155,7 @@ export default function Fornecedores() {
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{editing ? 'Editar Fornecedor' : 'Novo Fornecedor'}</DialogTitle>
-          </DialogHeader>
+          <DialogHeader><DialogTitle>{editing ? 'Editar Fornecedor' : 'Novo Fornecedor'}</DialogTitle></DialogHeader>
           <div className="space-y-4">
             <div><Label>Nome *</Label><Input value={form.nome} onChange={e => setForm(p => ({ ...p, nome: e.target.value }))} /></div>
             <div className="grid grid-cols-2 gap-4">

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { usePermissions } from '@/hooks/usePermissions';
 import { useToast } from '@/hooks/use-toast';
 import { formatCurrency } from '@/lib/processData';
 import { formatDateBR } from '@/lib/dateUtils';
@@ -29,7 +30,11 @@ const Despesas = () => {
   const [endDate, setEndDate] = useState<Date>(endOfMonth(new Date()));
   const navigate = useNavigate();
   const { user, isLoading: authLoading } = useAuth();
+  const { hasPermission } = usePermissions();
   const { toast } = useToast();
+
+  const canCreate = hasPermission('financeiro', 'create');
+  const canDelete = hasPermission('financeiro', 'delete');
 
   useEffect(() => { if (!authLoading && !user) navigate('/auth'); }, [user, authLoading, navigate]);
   useEffect(() => { if (user) fetchDespesas(); }, [user, startDate, endDate]);
@@ -66,19 +71,21 @@ const Despesas = () => {
         <DateRangeFilter onFilter={(s, e) => { setStartDate(s); setEndDate(e); }} initialStartDate={startDate} initialEndDate={endDate} />
         
         <div className="flex flex-wrap gap-4 items-center justify-between">
-          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-            <DialogTrigger asChild><Button className="gap-2"><Plus className="w-4 h-4" />Nova Despesa</Button></DialogTrigger>
-            <DialogContent>
-              <DialogHeader><DialogTitle>Nova Despesa</DialogTitle></DialogHeader>
-              <div className="space-y-4 py-4">
-                <div><Label>Data</Label><Input type="date" value={form.data} onChange={(e) => setForm({ ...form, data: e.target.value })} /></div>
-                <div><Label>Descrição</Label><Input value={form.descricao} onChange={(e) => setForm({ ...form, descricao: e.target.value })} /></div>
-                <div><Label>Valor (R$)</Label><Input type="number" step="0.01" value={form.valor} onChange={(e) => setForm({ ...form, valor: e.target.value })} /></div>
-                <div><Label>Categoria</Label><Select value={form.categoria} onValueChange={(v) => setForm({ ...form, categoria: v })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{CATEGORIAS.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent></Select></div>
-                <Button onClick={handleSubmit} className="w-full">Adicionar</Button>
-              </div>
-            </DialogContent>
-          </Dialog>
+          {canCreate && (
+            <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+              <DialogTrigger asChild><Button className="gap-2"><Plus className="w-4 h-4" />Nova Despesa</Button></DialogTrigger>
+              <DialogContent>
+                <DialogHeader><DialogTitle>Nova Despesa</DialogTitle></DialogHeader>
+                <div className="space-y-4 py-4">
+                  <div><Label>Data</Label><Input type="date" value={form.data} onChange={(e) => setForm({ ...form, data: e.target.value })} /></div>
+                  <div><Label>Descrição</Label><Input value={form.descricao} onChange={(e) => setForm({ ...form, descricao: e.target.value })} /></div>
+                  <div><Label>Valor (R$)</Label><Input type="number" step="0.01" value={form.valor} onChange={(e) => setForm({ ...form, valor: e.target.value })} /></div>
+                  <div><Label>Categoria</Label><Select value={form.categoria} onValueChange={(v) => setForm({ ...form, categoria: v })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{CATEGORIAS.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent></Select></div>
+                  <Button onClick={handleSubmit} className="w-full">Adicionar</Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+          )}
           <div className="bg-card rounded-xl p-4 shadow-card"><p className="text-xs text-muted-foreground">Total no Período</p><p className="text-2xl font-bold text-destructive">{formatCurrency(totalDespesas)}</p></div>
         </div>
 
@@ -86,8 +93,8 @@ const Despesas = () => {
           <div className="text-center py-16 bg-card rounded-2xl shadow-card"><Receipt className="w-16 h-16 text-muted-foreground mx-auto mb-4" /><p className="text-muted-foreground">Nenhuma despesa no período.</p></div>
         ) : (
           <div className="bg-card rounded-2xl shadow-card overflow-hidden">
-            <Table><TableHeader><TableRow><TableHead>Data</TableHead><TableHead>Descrição</TableHead><TableHead>Categoria</TableHead><TableHead className="text-right">Valor</TableHead><TableHead>Ação</TableHead></TableRow></TableHeader>
-              <TableBody>{despesas.map((d) => (<TableRow key={d.id}><TableCell>{formatDateBR(d.data)}</TableCell><TableCell>{d.descricao}</TableCell><TableCell>{d.categoria}</TableCell><TableCell className="text-right text-destructive font-medium">{formatCurrency(d.valor)}</TableCell><TableCell><Button variant="ghost" size="icon" onClick={() => handleDelete(d.id)}><Trash2 className="w-4 h-4 text-destructive" /></Button></TableCell></TableRow>))}</TableBody>
+            <Table><TableHeader><TableRow><TableHead>Data</TableHead><TableHead>Descrição</TableHead><TableHead>Categoria</TableHead><TableHead className="text-right">Valor</TableHead>{canDelete && <TableHead>Ação</TableHead>}</TableRow></TableHeader>
+              <TableBody>{despesas.map((d) => (<TableRow key={d.id}><TableCell>{formatDateBR(d.data)}</TableCell><TableCell>{d.descricao}</TableCell><TableCell>{d.categoria}</TableCell><TableCell className="text-right text-destructive font-medium">{formatCurrency(d.valor)}</TableCell>{canDelete && <TableCell><Button variant="ghost" size="icon" onClick={() => handleDelete(d.id)}><Trash2 className="w-4 h-4 text-destructive" /></Button></TableCell>}</TableRow>))}</TableBody>
             </Table>
           </div>
         )}

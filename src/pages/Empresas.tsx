@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { usePermissions } from '@/hooks/usePermissions';
 import { useToast } from '@/hooks/use-toast';
 import { AppLayout } from '@/components/AppLayout';
 import { Button } from '@/components/ui/button';
@@ -23,12 +24,17 @@ interface Empresa {
 
 export default function Empresas() {
   const { user } = useAuth();
+  const { hasPermission } = usePermissions();
   const { toast } = useToast();
   const [empresas, setEmpresas] = useState<Empresa[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Empresa | null>(null);
   const [form, setForm] = useState({ nome: '', cnpj: '', tipo: 'filial' });
+
+  const canCreate = hasPermission('administracao', 'create');
+  const canEdit = hasPermission('administracao', 'edit');
+  const canDelete = hasPermission('administracao', 'delete');
 
   useEffect(() => { if (user) fetchEmpresas(); }, [user]);
 
@@ -81,21 +87,16 @@ export default function Empresas() {
   return (
     <AppLayout title="Empresas" subtitle="Cadastro de empresas e filiais">
       <div className="space-y-6">
-        <div className="flex justify-end">
-          <Button onClick={() => openDialog()}>
-            <Plus className="w-4 h-4 mr-2" /> Nova Empresa
-          </Button>
-        </div>
+        {canCreate && (
+          <div className="flex justify-end">
+            <Button onClick={() => openDialog()}><Plus className="w-4 h-4 mr-2" /> Nova Empresa</Button>
+          </div>
+        )}
 
         {loading ? (
           <div className="flex justify-center py-12"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
         ) : empresas.length === 0 ? (
-          <Card>
-            <CardContent className="py-12 text-center">
-              <Building2 className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-              <p className="text-muted-foreground">Nenhuma empresa cadastrada.</p>
-            </CardContent>
-          </Card>
+          <Card><CardContent className="py-12 text-center"><Building2 className="w-12 h-12 text-muted-foreground mx-auto mb-4" /><p className="text-muted-foreground">Nenhuma empresa cadastrada.</p></CardContent></Card>
         ) : (
           <Card>
             <CardContent className="pt-6">
@@ -106,7 +107,7 @@ export default function Empresas() {
                     <TableHead>CNPJ</TableHead>
                     <TableHead>Tipo</TableHead>
                     <TableHead>Status</TableHead>
-                    <TableHead className="text-center">Ações</TableHead>
+                    {(canEdit || canDelete) && <TableHead className="text-center">Ações</TableHead>}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -116,20 +117,18 @@ export default function Empresas() {
                       <TableCell className="font-mono text-sm">{e.cnpj || '-'}</TableCell>
                       <TableCell className="capitalize">{e.tipo}</TableCell>
                       <TableCell>
-                        <Badge
-                          className="cursor-pointer"
-                          variant={e.ativo ? 'default' : 'secondary'}
-                          onClick={() => toggleAtivo(e)}
-                        >
+                        <Badge className="cursor-pointer" variant={e.ativo ? 'default' : 'secondary'} onClick={() => canEdit && toggleAtivo(e)}>
                           {e.ativo ? 'Ativo' : 'Inativo'}
                         </Badge>
                       </TableCell>
-                      <TableCell>
-                        <div className="flex justify-center gap-1">
-                          <Button variant="ghost" size="sm" onClick={() => openDialog(e)}><Pencil className="w-4 h-4" /></Button>
-                          <Button variant="ghost" size="sm" onClick={() => handleDelete(e.id)}><Trash2 className="w-4 h-4" /></Button>
-                        </div>
-                      </TableCell>
+                      {(canEdit || canDelete) && (
+                        <TableCell>
+                          <div className="flex justify-center gap-1">
+                            {canEdit && <Button variant="ghost" size="sm" onClick={() => openDialog(e)}><Pencil className="w-4 h-4" /></Button>}
+                            {canDelete && <Button variant="ghost" size="sm" onClick={() => handleDelete(e.id)}><Trash2 className="w-4 h-4" /></Button>}
+                          </div>
+                        </TableCell>
+                      )}
                     </TableRow>
                   ))}
                 </TableBody>
@@ -141,9 +140,7 @@ export default function Empresas() {
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{editing ? 'Editar Empresa' : 'Nova Empresa'}</DialogTitle>
-          </DialogHeader>
+          <DialogHeader><DialogTitle>{editing ? 'Editar Empresa' : 'Nova Empresa'}</DialogTitle></DialogHeader>
           <div className="space-y-4">
             <div><Label>Nome *</Label><Input value={form.nome} onChange={e => setForm(p => ({ ...p, nome: e.target.value }))} /></div>
             <div><Label>CNPJ</Label><Input value={form.cnpj} onChange={e => setForm(p => ({ ...p, cnpj: e.target.value }))} /></div>
