@@ -15,16 +15,15 @@ Deno.serve(async (req) => {
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, serviceRoleKey);
 
-    // Verify caller is admin
+    // Extract token from Authorization header
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) throw new Error("No authorization header");
 
-    const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
-    const callerClient = createClient(supabaseUrl, anonKey, {
-      global: { headers: { Authorization: authHeader } },
-    });
-    const { data: { user: caller } } = await callerClient.auth.getUser();
-    if (!caller) throw new Error("Unauthorized");
+    const token = authHeader.replace("Bearer ", "");
+    
+    // Use the service role client to verify the token and get the user
+    const { data: { user: caller }, error: userError } = await supabase.auth.getUser(token);
+    if (userError || !caller) throw new Error("Unauthorized");
 
     const { data: isAdmin } = await supabase.rpc("user_is_admin", { _user_id: caller.id });
     if (!isAdmin) throw new Error("Admin access required");
@@ -38,7 +37,6 @@ Deno.serve(async (req) => {
         .order("created_at", { ascending: false });
       if (error) throw error;
 
-      // Get auth users for last sign in info
       const { data: { users: authUsers } } = await supabase.auth.admin.listUsers();
       const authMap = new Map(authUsers?.map(u => [u.id, u]) || []);
 
@@ -61,7 +59,6 @@ Deno.serve(async (req) => {
       });
       if (createError) throw createError;
 
-      // Update profile with extra fields
       await supabase.from("profiles").update({ unidade, cargo }).eq("user_id", newUser.user!.id);
 
       return new Response(JSON.stringify({ success: true, user_id: newUser.user!.id }), {
@@ -72,10 +69,8 @@ Deno.serve(async (req) => {
     if (action === "update") {
       const { user_id, nome, unidade, cargo, ativo, email, password } = payload;
 
-      // Update profile
       await supabase.from("profiles").update({ nome, unidade, cargo, ativo }).eq("user_id", user_id);
 
-      // Update auth user if email/password changed
       const authUpdate: any = {};
       if (email) authUpdate.email = email;
       if (password) authUpdate.password = password;
