@@ -1,6 +1,7 @@
 import { ReactNode } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
+import { usePermissions, ModuleName } from '@/hooks/usePermissions';
 import { Button } from '@/components/ui/button';
 import {
   Utensils,
@@ -12,7 +13,12 @@ import {
   Receipt,
   DollarSign,
   Menu,
-  X
+  X,
+  FileText,
+  Building2,
+  Truck,
+  Shield,
+  ChevronDown
 } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
@@ -23,13 +29,25 @@ interface AppLayoutProps {
   subtitle?: string;
 }
 
-const navItems = [
-  { path: '/', label: 'Visão Geral', icon: LayoutDashboard },
-  { path: '/upload', label: 'Novo Upload', icon: Upload },
-  { path: '/historico', label: 'Histórico', icon: History },
-  { path: '/funcionarios', label: 'Colaboradores', icon: Users },
-  { path: '/despesas', label: 'Despesas', icon: Receipt },
-  { path: '/rateio', label: 'Rateio Semanal', icon: DollarSign },
+interface NavItem {
+  path: string;
+  label: string;
+  icon: any;
+  module?: ModuleName;
+  children?: NavItem[];
+}
+
+const navItems: NavItem[] = [
+  { path: '/', label: 'Visão Geral', icon: LayoutDashboard, module: 'financeiro' },
+  { path: '/upload', label: 'Novo Upload', icon: Upload, module: 'upload' },
+  { path: '/historico', label: 'Histórico', icon: History, module: 'financeiro' },
+  { path: '/funcionarios', label: 'Colaboradores', icon: Users, module: 'colaboradores' },
+  { path: '/despesas', label: 'Despesas', icon: Receipt, module: 'financeiro' },
+  { path: '/rateio', label: 'Rateio Semanal', icon: DollarSign, module: 'financeiro' },
+  { path: '/contas-pagar', label: 'Contas a Pagar', icon: FileText, module: 'contas_pagar' },
+  { path: '/fornecedores', label: 'Fornecedores', icon: Truck, module: 'contas_pagar' },
+  { path: '/empresas', label: 'Empresas', icon: Building2, module: 'administracao' },
+  { path: '/grupos-acesso', label: 'Grupos de Acesso', icon: Shield, module: 'administracao' },
 ];
 
 export function AppLayout({ children, title, subtitle }: AppLayoutProps) {
@@ -37,11 +55,19 @@ export function AppLayout({ children, title, subtitle }: AppLayoutProps) {
   const navigate = useNavigate();
   const location = useLocation();
   const { signOut } = useAuth();
+  const { hasPermission, permissions, isAdmin } = usePermissions();
 
   const handleSignOut = async () => {
     await signOut();
     navigate('/auth');
   };
+
+  const visibleNavItems = navItems.filter(item => {
+    if (!item.module) return true;
+    // If user has no groups yet, show everything
+    if (permissions.length === 0 && !isAdmin) return true;
+    return hasPermission(item.module, 'read');
+  });
 
   return (
     <div className="min-h-screen bg-background flex w-full">
@@ -81,8 +107,8 @@ export function AppLayout({ children, title, subtitle }: AppLayoutProps) {
           </div>
 
           {/* Navigation */}
-          <nav className="flex-1 p-4 space-y-1">
-            {navItems.map((item) => {
+          <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
+            {visibleNavItems.map((item) => {
               const isActive = location.pathname === item.path;
               return (
                 <button

@@ -4,6 +4,8 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
+import { PermissionsProvider } from "@/hooks/usePermissions";
+import { ProtectedRoute } from "@/components/ProtectedRoute";
 import Home from "./pages/Home";
 import Upload from "./pages/Upload";
 import Auth from "./pages/Auth";
@@ -12,6 +14,10 @@ import FechamentoDetalhes from "./pages/FechamentoDetalhes";
 import Funcionarios from "./pages/Funcionarios";
 import Despesas from "./pages/Despesas";
 import Rateio from "./pages/Rateio";
+import ContasPagar from "./pages/ContasPagar";
+import Empresas from "./pages/Empresas";
+import Fornecedores from "./pages/Fornecedores";
+import GruposAcesso from "./pages/GruposAcesso";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -19,23 +25,29 @@ const queryClient = new QueryClient();
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <AuthProvider>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
-          <Routes>
-            <Route path="/" element={<Home />} />
-            <Route path="/upload" element={<Upload />} />
-            <Route path="/auth" element={<Auth />} />
-            <Route path="/historico" element={<Historico />} />
-            <Route path="/fechamento/:id" element={<FechamentoDetalhes />} />
-            <Route path="/funcionarios" element={<Funcionarios />} />
-            <Route path="/despesas" element={<Despesas />} />
-            <Route path="/rateio" element={<Rateio />} />
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </BrowserRouter>
-      </TooltipProvider>
+      <PermissionsProvider>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <BrowserRouter>
+            <Routes>
+              <Route path="/auth" element={<Auth />} />
+              <Route path="/" element={<ProtectedRoute module="financeiro"><Home /></ProtectedRoute>} />
+              <Route path="/upload" element={<ProtectedRoute module="upload"><Upload /></ProtectedRoute>} />
+              <Route path="/historico" element={<ProtectedRoute module="financeiro"><Historico /></ProtectedRoute>} />
+              <Route path="/fechamento/:id" element={<ProtectedRoute module="financeiro"><FechamentoDetalhes /></ProtectedRoute>} />
+              <Route path="/funcionarios" element={<ProtectedRoute module="colaboradores"><Funcionarios /></ProtectedRoute>} />
+              <Route path="/despesas" element={<ProtectedRoute module="financeiro"><Despesas /></ProtectedRoute>} />
+              <Route path="/rateio" element={<ProtectedRoute module="financeiro"><Rateio /></ProtectedRoute>} />
+              <Route path="/contas-pagar" element={<ProtectedRoute module="contas_pagar"><ContasPagar /></ProtectedRoute>} />
+              <Route path="/empresas" element={<ProtectedRoute module="administracao"><Empresas /></ProtectedRoute>} />
+              <Route path="/fornecedores" element={<ProtectedRoute module="contas_pagar"><Fornecedores /></ProtectedRoute>} />
+              <Route path="/grupos-acesso" element={<ProtectedRoute module="administracao"><GruposAcesso /></ProtectedRoute>} />
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </BrowserRouter>
+        </TooltipProvider>
+      </PermissionsProvider>
     </AuthProvider>
   </QueryClientProvider>
 );
