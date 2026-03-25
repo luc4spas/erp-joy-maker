@@ -73,23 +73,44 @@ export default function ContasPagar() {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (user) { fetchContas(); fetchEmpresas(); fetchFornecedores(); }
+    if (user) { 
+      fetchContas(); 
+      fetchEmpresas(); 
+      fetchFornecedores(); 
+    }
   }, [user]);
 
   const fetchContas = async () => {
     setLoading(true);
-    const { data } = await supabase.from('contas_pagar').select('*, fornecedores(nome), empresas(nome)').eq('user_id', user!.id).order('created_at', { ascending: false });
+    // REMOVIDO: .eq('user_id', user!.id) - Deixa o RLS do banco decidir o que mostrar (Admin vê tudo, Operador vê o dele)
+    const { data } = await supabase
+      .from('contas_pagar')
+      .select('*, fornecedores(nome), empresas(nome)')
+      .order('created_at', { ascending: false });
+      
     setContas((data as any) || []);
     setLoading(false);
   };
 
   const fetchEmpresas = async () => {
-    const { data } = await supabase.from('empresas').select('id, nome').eq('user_id', user!.id).eq('ativo', true);
+    // REMOVIDO: .eq('user_id', user!.id) - Permite que o operador veja as empresas cadastradas pelo admin
+    const { data } = await supabase
+      .from('empresas')
+      .select('id, nome')
+      .eq('ativo', true)
+      .order('nome');
+      
     setEmpresas(data || []);
   };
 
   const fetchFornecedores = async () => {
-    const { data } = await supabase.from('fornecedores').select('id, nome').eq('user_id', user!.id).eq('ativo', true);
+    // REMOVIDO: .eq('user_id', user!.id) - Permite que o operador veja os fornecedores cadastrados pelo admin
+    const { data } = await supabase
+      .from('fornecedores')
+      .select('id, nome')
+      .eq('ativo', true)
+      .order('nome');
+      
     setFornecedores(data || []);
   };
 
@@ -131,13 +152,17 @@ export default function ContasPagar() {
         num_parcelas: parseInt(formData.num_parcelas), dia_vencimento: parseInt(formData.dia_vencimento) || null,
         categoria: formData.categoria || null, centro_custo: formData.centro_custo || null,
       }).select().single();
+      
       if (error) throw error;
+      
       const parcelasInsert = generatedParcelas.map(p => ({
         conta_pagar_id: conta.id, user_id: user.id, numero_parcela: p.numero,
         valor_original: p.valor, data_vencimento: p.data_vencimento, status: 'pendente' as const,
       }));
+      
       const { error: parcelasError } = await supabase.from('parcelas_pagar').insert(parcelasInsert);
       if (parcelasError) throw parcelasError;
+      
       toast({ title: 'Título gerado com sucesso!' });
       setFormData({ empresa_id: '', fornecedor_id: '', numero_documento: '', valor_total: '', num_parcelas: '1', dia_vencimento: '', categoria: '', centro_custo: '' });
       setGeneratedParcelas([]); setShowPreview(false); setActiveTab('listagem'); fetchContas();
@@ -287,20 +312,4 @@ export default function ContasPagar() {
                   <TableCell>{p.data_pagamento ? format(new Date(p.data_pagamento + 'T12:00:00'), 'dd/MM/yyyy') : '-'}</TableCell>
                   {canEdit && (
                     <TableCell>
-                      <div className="flex gap-1">
-                        {p.status !== 'pago' && <Button variant="outline" size="sm" onClick={() => updateParcelaStatus(p.id, 'pago', p.valor_original)}>Pagar</Button>}
-                        {p.status === 'pago' && <Button variant="outline" size="sm" onClick={() => updateParcelaStatus(p.id, 'pendente')}>Estornar</Button>}
-                      </div>
-                    </TableCell>
-                  )}
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </DialogContent>
-      </Dialog>
-
-      <NovoFornecedorDialog open={fornecedorDialogOpen} onOpenChange={setFornecedorDialogOpen} onSaved={() => { fetchFornecedores(); setFornecedorDialogOpen(false); }} />
-    </AppLayout>
-  );
-}
+                      <div className="
