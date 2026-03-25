@@ -153,7 +153,7 @@ const Home = () => {
   const restaurantShare = [
     { name: 'Trattoria', value: summary.trattoria.totalGeral },
     { name: 'Japa', value: summary.japa.totalGeral },
-    ...(summary.hasHippocampus ? [{ name: 'Hippocampus', value: summary.hippocampus.totalGeral }] : []),
+    { name: 'Hippocampus', value: summary.hippocampus.totalGeral },
   ];
 
   return (
