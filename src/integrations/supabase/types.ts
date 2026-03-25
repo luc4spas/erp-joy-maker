@@ -157,14 +157,19 @@ export type Database = {
       }
       fechamentos: {
         Row: {
+          comissao_hippocampus: number
           comissao_japa: number
           comissao_trattoria: number
           created_at: string
           data: string
+          hippocampus_taxa: number
+          hippocampus_total: number
+          hippocampus_valor_itens: number
           id: string
           japa_taxa: number
           japa_total: number
           japa_valor_itens: number
+          pagamentos_hippocampus: Json | null
           pagamentos_japa: Json | null
           pagamentos_trattoria: Json | null
           total_geral: number
@@ -174,14 +179,19 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          comissao_hippocampus?: number
           comissao_japa?: number
           comissao_trattoria?: number
           created_at?: string
           data: string
+          hippocampus_taxa?: number
+          hippocampus_total?: number
+          hippocampus_valor_itens?: number
           id?: string
           japa_taxa?: number
           japa_total?: number
           japa_valor_itens?: number
+          pagamentos_hippocampus?: Json | null
           pagamentos_japa?: Json | null
           pagamentos_trattoria?: Json | null
           total_geral?: number
@@ -191,14 +201,19 @@ export type Database = {
           user_id: string
         }
         Update: {
+          comissao_hippocampus?: number
           comissao_japa?: number
           comissao_trattoria?: number
           created_at?: string
           data?: string
+          hippocampus_taxa?: number
+          hippocampus_total?: number
+          hippocampus_valor_itens?: number
           id?: string
           japa_taxa?: number
           japa_total?: number
           japa_valor_itens?: number
+          pagamentos_hippocampus?: Json | null
           pagamentos_japa?: Json | null
           pagamentos_trattoria?: Json | null
           total_geral?: number

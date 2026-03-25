@@ -27,38 +27,30 @@ export function SaveHistoryButton({ data }: SaveHistoryButtonProps) {
       const getValidISODate = (raw: any): string => {
         const today = new Date().toISOString().split('T')[0];
         if (!raw) return today;
-
         const datePart = String(raw).split(' ')[0];
-
         if (datePart.includes('/')) {
           const [d, m, y] = datePart.split('/');
-          if (y && m && d) {
-            return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
-          }
+          if (y && m && d) return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
         }
-
-        if (datePart.match(/^\d{4}-\d{2}-\d{2}$/)) {
-          return datePart;
-        }
-
+        if (datePart.match(/^\d{4}-\d{2}-\d{2}$/)) return datePart;
         return today;
       };
 
       const reportDate = getValidISODate(data.dataRelatorio);
 
-      // Agregação dos pagamentos (JSONB)
-      const pagamentosJapa: Record<string, number> = {};
-      const pagamentosTrattoria: Record<string, number> = {};
+      const extractPayments = (summary: typeof data.trattoria): Record<string, number> => {
+        const result: Record<string, number> = {};
+        Object.entries(summary.porFormaPagamento).forEach(([method, values]) => {
+          result[method] = values.frValor;
+        });
+        return result;
+      };
 
-      Object.entries(data.japa.porFormaPagamento).forEach(([method, values]) => {
-        pagamentosJapa[method] = values.frValor;
-      });
+      const pagamentosJapa = extractPayments(data.japa);
+      const pagamentosTrattoria = extractPayments(data.trattoria);
+      const pagamentosHippocampus = extractPayments(data.hippocampus);
 
-      Object.entries(data.trattoria.porFormaPagamento).forEach(([method, values]) => {
-        pagamentosTrattoria[method] = values.frValor;
-      });
-
-      const payload = {
+      const payload: Record<string, any> = {
         user_id: user.id,
         data: reportDate,
         japa_total: data.japa.totalGeral,
@@ -67,15 +59,23 @@ export function SaveHistoryButton({ data }: SaveHistoryButtonProps) {
         trattoria_total: data.trattoria.totalGeral,
         trattoria_taxa: data.trattoria.totalAcrescimo,
         trattoria_valor_itens: data.trattoria.totalValor,
-        total_geral: data.trattoria.totalGeral + data.japa.totalGeral,
+        total_geral: data.trattoria.totalGeral + data.japa.totalGeral + data.hippocampus.totalGeral,
         comissao_japa: data.japa.comissaoGarcom,
         comissao_trattoria: data.trattoria.comissaoGarcom,
         pagamentos_japa: pagamentosJapa,
         pagamentos_trattoria: pagamentosTrattoria,
       };
 
-      const { error } = await supabase.from('fechamentos').insert(payload);
+      // Add hippocampus data if present
+      if (data.hasHippocampus) {
+        payload.hippocampus_total = data.hippocampus.totalGeral;
+        payload.hippocampus_taxa = data.hippocampus.totalAcrescimo;
+        payload.hippocampus_valor_itens = data.hippocampus.totalValor;
+        payload.comissao_hippocampus = data.hippocampus.comissaoGarcom;
+        payload.pagamentos_hippocampus = pagamentosHippocampus;
+      }
 
+      const { error } = await supabase.from('fechamentos').insert(payload as any);
       if (error) throw error;
 
       setIsSaved(true);

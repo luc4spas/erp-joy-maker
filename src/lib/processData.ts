@@ -11,7 +11,7 @@ export interface RawRow {
 
 export interface ProcessedRow {
   mesa: string;
-  restaurante: 'TRATTORIA' | 'JAPA';
+  restaurante: 'TRATTORIA' | 'JAPA' | 'HIPPOCAMPUS';
   valor: number;
   acrescimo: number;
   frValor: number;
@@ -25,7 +25,7 @@ export interface PaymentMethodData {
 }
 
 export interface RestaurantSummary {
-  restaurante: 'TRATTORIA' | 'JAPA';
+  restaurante: 'TRATTORIA' | 'JAPA' | 'HIPPOCAMPUS';
   totalValor: number;
   totalAcrescimo: number;
   totalGeral: number;
@@ -36,8 +36,11 @@ export interface RestaurantSummary {
 export interface DashboardData {
   trattoria: RestaurantSummary;
   japa: RestaurantSummary;
+  hippocampus: RestaurantSummary;
+  hasHippocampus: boolean;
   rows: ProcessedRow[];
   dataRelatorio: string | null;
+  totalDinheiro: number;
 }
 
 function extractTableNumber(tipovenda: string): number | null {
@@ -70,31 +73,49 @@ function findColumnKey(headers: string[], possibleNames: string[]): string | nul
 
 function parseExcelDate(value: any): string | null {
   if (!value) return null;
-
-  // Se for o número serial do Excel
   if (typeof value === 'number') {
     const date = XLSX.SSF.parse_date_code(value);
     return `${date.y}-${String(date.m).padStart(2, '0')}-${String(date.d).padStart(2, '0')}`;
   }
-
-  // Se for string (ex: "18/01/2026 23:48:24")
   if (typeof value === 'string') {
-    // 1. Pega apenas os primeiros 10 caracteres (a data)
     const datePart = value.trim().substring(0, 10);
-
-    // 2. Se estiver no formato DD/MM/YYYY, inverte para YYYY-MM-DD
     if (datePart.includes('/')) {
       const [d, m, y] = datePart.split('/');
       if (y && m && d) return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
     }
+    if (datePart.includes('-')) return datePart;
+  }
+  return null;
+}
 
-    // 3. Se já for YYYY-MM-DD, retorna direto
-    if (datePart.includes('-')) {
-      return datePart;
+function parseExcelTime(value: any): { hours: number; minutes: number } | null {
+  if (!value) return null;
+  if (typeof value === 'string') {
+    // Format: "18/01/2026 23:48:24" or just "23:48:24"
+    const timeMatch = value.match(/(\d{1,2}):(\d{2})(?::(\d{2}))?/);
+    if (timeMatch) {
+      return { hours: parseInt(timeMatch[1], 10), minutes: parseInt(timeMatch[2], 10) };
     }
   }
-
+  if (typeof value === 'number') {
+    // Excel serial date includes time as fractional part
+    const date = XLSX.SSF.parse_date_code(value);
+    return { hours: date.H || 0, minutes: date.M || 0 };
+  }
   return null;
+}
+
+function getDayOfWeek(dateStr: string): number {
+  // Returns 0=Sunday, 1=Monday, ...
+  const date = new Date(dateStr + 'T12:00:00');
+  return date.getDay();
+}
+
+function isHippocampusTime(time: { hours: number; minutes: number }): boolean {
+  const totalMinutes = time.hours * 60 + time.minutes;
+  const start = 11 * 60 + 30; // 11:30
+  const end = 18 * 60; // 18:00
+  return totalMinutes >= start && totalMinutes <= end;
 }
 
 export function parseFile(file: File): Promise<any[]> {
@@ -117,6 +138,17 @@ export function parseFile(file: File): Promise<any[]> {
   });
 }
 
+function createEmptySummary(restaurante: 'TRATTORIA' | 'JAPA' | 'HIPPOCAMPUS'): RestaurantSummary {
+  return {
+    restaurante,
+    totalValor: 0,
+    totalAcrescimo: 0,
+    totalGeral: 0,
+    comissaoGarcom: 0,
+    porFormaPagamento: {},
+  };
+}
+
 export function processData(rawData: any[]): DashboardData {
   if (!rawData.length) throw new Error('Arquivo vazio');
 
@@ -136,6 +168,9 @@ export function processData(rawData: any[]): DashboardData {
     }
   }
 
+  // Check if report date is a Sunday
+  const isSunday = dataRelatorio ? getDayOfWeek(dataRelatorio) === 0 : false;
+
   let lastTipovenda = '';
   const filledData = rawData.map((row: any) => {
     const tipovenda = row[tipovendaKey]?.toString().trim() || '';
@@ -146,6 +181,7 @@ export function processData(rawData: any[]): DashboardData {
       acrescimo: parseNumber(row[acrescimoKey]),
       frValor: parseNumber(row[frValorKey]),
       formaPagamento: row[formaPagamentoKey]?.toString().trim() || 'Outros',
+      time: parseExcelTime(row[dataKey]),
     };
   });
 
@@ -153,7 +189,13 @@ export function processData(rawData: any[]): DashboardData {
     .filter(row => row.tipovenda)
     .map(row => {
       const tableNumber = extractTableNumber(row.tipovenda);
-      const restaurante = tableNumber ? classifyRestaurant(tableNumber) : 'TRATTORIA';
+      let restaurante: 'TRATTORIA' | 'JAPA' | 'HIPPOCAMPUS' = tableNumber ? classifyRestaurant(tableNumber) : 'TRATTORIA';
+
+      // Hippocampus rule: Sunday between 11:30 and 18:00
+      if (isSunday && row.time && isHippocampusTime(row.time)) {
+        restaurante = 'HIPPOCAMPUS';
+      }
+
       return {
         mesa: row.tipovenda,
         restaurante,
@@ -164,7 +206,7 @@ export function processData(rawData: any[]): DashboardData {
       };
     });
 
-  const createSummary = (restaurante: 'TRATTORIA' | 'JAPA'): RestaurantSummary => {
+  const createSummary = (restaurante: 'TRATTORIA' | 'JAPA' | 'HIPPOCAMPUS'): RestaurantSummary => {
     const rows = processedRows.filter(r => r.restaurante === restaurante);
     const porFormaPagamento: Record<string, PaymentMethodData> = {};
 
@@ -177,19 +219,15 @@ export function processData(rawData: any[]): DashboardData {
       porFormaPagamento[row.formaPagamento].frValor += row.frValor;
     });
 
-    // NOVA LÓGICA: Subtrair TROCO do DINHEIRO
+    // Subtrair TROCO do DINHEIRO
     if (porFormaPagamento['TROCO'] && porFormaPagamento['DINHEIRO']) {
-      // TROCO vem negativo, então somamos para subtrair
       porFormaPagamento['DINHEIRO'].frValor += porFormaPagamento['TROCO'].frValor;
-      // Remove o TROCO do objeto
       delete porFormaPagamento['TROCO'];
     } else if (porFormaPagamento['TROCO']) {
-      // Se houver TROCO mas não houver DINHEIRO, apenas remove
       delete porFormaPagamento['TROCO'];
     }
 
     const totalValor = rows.reduce((sum, r) => sum + r.valor, 0);
-    // Recalcula totalGeral após ajuste do TROCO
     const totalGeral = Object.values(porFormaPagamento).reduce((sum, p) => sum + p.frValor, 0);
     
     return {
@@ -202,11 +240,25 @@ export function processData(rawData: any[]): DashboardData {
     };
   };
 
+  const trattoria = createSummary('TRATTORIA');
+  const japa = createSummary('JAPA');
+  const hippocampus = createSummary('HIPPOCAMPUS');
+  const hasHippocampus = processedRows.some(r => r.restaurante === 'HIPPOCAMPUS');
+
+  // Total dinheiro across all units
+  const totalDinheiro = 
+    (trattoria.porFormaPagamento['DINHEIRO']?.frValor || 0) +
+    (japa.porFormaPagamento['DINHEIRO']?.frValor || 0) +
+    (hippocampus.porFormaPagamento['DINHEIRO']?.frValor || 0);
+
   return {
-    trattoria: createSummary('TRATTORIA'),
-    japa: createSummary('JAPA'),
+    trattoria,
+    japa,
+    hippocampus,
+    hasHippocampus,
     rows: processedRows,
     dataRelatorio,
+    totalDinheiro,
   };
 }
 

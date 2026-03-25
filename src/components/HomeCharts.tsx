@@ -28,7 +28,7 @@ interface HomeChartsProps {
   restaurantShare: RestaurantShare[];
 }
 
-const COLORS = ['hsl(15, 80%, 55%)', 'hsl(168, 76%, 42%)'];
+const COLORS = ['hsl(15, 80%, 55%)', 'hsl(168, 76%, 42%)', 'hsl(262, 67%, 55%)'];
 
 export function HomeCharts({ dailySales, restaurantShare }: HomeChartsProps) {
   const formatXAxis = (dateStr: string) => {

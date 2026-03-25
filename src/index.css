@@ -45,12 +45,20 @@
     --japa-light: 168 70% 94%;
     --japa-foreground: 168 76% 20%;
 
+    --hippocampus: 262 67% 55%;
+    --hippocampus-light: 262 60% 95%;
+    --hippocampus-foreground: 262 67% 25%;
+
     --success: 142 76% 36%;
     --success-light: 142 70% 94%;
 
     --commission: 45 93% 47%;
     --commission-light: 45 93% 94%;
     --commission-foreground: 45 93% 25%;
+
+    --malote: 142 76% 36%;
+    --malote-light: 142 70% 94%;
+    --malote-foreground: 142 76% 20%;
 
     --shadow-card: 0 4px 24px -4px hsl(222 47% 11% / 0.08);
     --shadow-card-hover: 0 8px 32px -4px hsl(222 47% 11% / 0.12);
@@ -162,6 +170,22 @@
     color: hsl(var(--japa-foreground));
   }
 
+  .bg-hippocampus {
+    background-color: hsl(var(--hippocampus));
+  }
+
+  .bg-hippocampus-light {
+    background-color: hsl(var(--hippocampus-light));
+  }
+
+  .text-hippocampus {
+    color: hsl(var(--hippocampus));
+  }
+
+  .text-hippocampus-foreground {
+    color: hsl(var(--hippocampus-foreground));
+  }
+
   .bg-commission {
     background-color: hsl(var(--commission));
   }
@@ -176,6 +200,22 @@
 
   .text-commission-foreground {
     color: hsl(var(--commission-foreground));
+  }
+
+  .bg-malote {
+    background-color: hsl(var(--malote));
+  }
+
+  .bg-malote-light {
+    background-color: hsl(var(--malote-light));
+  }
+
+  .text-malote {
+    color: hsl(var(--malote));
+  }
+
+  .text-malote-foreground {
+    color: hsl(var(--malote-foreground));
   }
 
   .shadow-card {
