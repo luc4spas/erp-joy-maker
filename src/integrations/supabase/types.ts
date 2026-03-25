@@ -14,6 +14,87 @@ export type Database = {
   }
   public: {
     Tables: {
+      access_groups: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+        }
+        Relationships: []
+      }
+      contas_pagar: {
+        Row: {
+          categoria: string | null
+          centro_custo: string | null
+          created_at: string
+          dia_vencimento: number | null
+          empresa_id: string
+          fornecedor_id: string
+          id: string
+          num_parcelas: number
+          numero_documento: string | null
+          observacao: string | null
+          user_id: string
+          valor_total: number
+        }
+        Insert: {
+          categoria?: string | null
+          centro_custo?: string | null
+          created_at?: string
+          dia_vencimento?: number | null
+          empresa_id: string
+          fornecedor_id: string
+          id?: string
+          num_parcelas?: number
+          numero_documento?: string | null
+          observacao?: string | null
+          user_id: string
+          valor_total?: number
+        }
+        Update: {
+          categoria?: string | null
+          centro_custo?: string | null
+          created_at?: string
+          dia_vencimento?: number | null
+          empresa_id?: string
+          fornecedor_id?: string
+          id?: string
+          num_parcelas?: number
+          numero_documento?: string | null
+          observacao?: string | null
+          user_id?: string
+          valor_total?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contas_pagar_empresa_id_fkey"
+            columns: ["empresa_id"]
+            isOneToOne: false
+            referencedRelation: "empresas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contas_pagar_fornecedor_id_fkey"
+            columns: ["fornecedor_id"]
+            isOneToOne: false
+            referencedRelation: "fornecedores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       despesas: {
         Row: {
           categoria: string
@@ -41,6 +122,36 @@ export type Database = {
           id?: string
           user_id?: string
           valor?: number
+        }
+        Relationships: []
+      }
+      empresas: {
+        Row: {
+          ativo: boolean
+          cnpj: string | null
+          created_at: string
+          id: string
+          nome: string
+          tipo: string
+          user_id: string
+        }
+        Insert: {
+          ativo?: boolean
+          cnpj?: string | null
+          created_at?: string
+          id?: string
+          nome: string
+          tipo?: string
+          user_id: string
+        }
+        Update: {
+          ativo?: boolean
+          cnpj?: string | null
+          created_at?: string
+          id?: string
+          nome?: string
+          tipo?: string
+          user_id?: string
         }
         Relationships: []
       }
@@ -98,6 +209,48 @@ export type Database = {
         }
         Relationships: []
       }
+      fornecedores: {
+        Row: {
+          agencia: string | null
+          ativo: boolean
+          banco: string | null
+          cnpj_cpf: string | null
+          conta: string | null
+          created_at: string
+          email: string | null
+          id: string
+          nome: string
+          telefone: string | null
+          user_id: string
+        }
+        Insert: {
+          agencia?: string | null
+          ativo?: boolean
+          banco?: string | null
+          cnpj_cpf?: string | null
+          conta?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          nome: string
+          telefone?: string | null
+          user_id: string
+        }
+        Update: {
+          agencia?: string | null
+          ativo?: boolean
+          banco?: string | null
+          cnpj_cpf?: string | null
+          conta?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          nome?: string
+          telefone?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       funcionarios: {
         Row: {
           ativo: boolean
@@ -130,6 +283,44 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      group_permissions: {
+        Row: {
+          can_create: boolean
+          can_delete: boolean
+          can_edit: boolean
+          can_read: boolean
+          group_id: string
+          id: string
+          module: string
+        }
+        Insert: {
+          can_create?: boolean
+          can_delete?: boolean
+          can_edit?: boolean
+          can_read?: boolean
+          group_id: string
+          id?: string
+          module: string
+        }
+        Update: {
+          can_create?: boolean
+          can_delete?: boolean
+          can_edit?: boolean
+          can_read?: boolean
+          group_id?: string
+          id?: string
+          module?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "group_permissions_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "access_groups"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       pagamentos_funcionarios: {
         Row: {
@@ -179,14 +370,101 @@ export type Database = {
           },
         ]
       }
+      parcelas_pagar: {
+        Row: {
+          anexo_url: string | null
+          conta_pagar_id: string
+          created_at: string
+          data_pagamento: string | null
+          data_vencimento: string
+          forma_pagamento: string | null
+          id: string
+          numero_parcela: number
+          status: Database["public"]["Enums"]["conta_status"]
+          user_id: string
+          valor_original: number
+          valor_pago: number | null
+        }
+        Insert: {
+          anexo_url?: string | null
+          conta_pagar_id: string
+          created_at?: string
+          data_pagamento?: string | null
+          data_vencimento: string
+          forma_pagamento?: string | null
+          id?: string
+          numero_parcela: number
+          status?: Database["public"]["Enums"]["conta_status"]
+          user_id: string
+          valor_original?: number
+          valor_pago?: number | null
+        }
+        Update: {
+          anexo_url?: string | null
+          conta_pagar_id?: string
+          created_at?: string
+          data_pagamento?: string | null
+          data_vencimento?: string
+          forma_pagamento?: string | null
+          id?: string
+          numero_parcela?: number
+          status?: Database["public"]["Enums"]["conta_status"]
+          user_id?: string
+          valor_original?: number
+          valor_pago?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "parcelas_pagar_conta_pagar_id_fkey"
+            columns: ["conta_pagar_id"]
+            isOneToOne: false
+            referencedRelation: "contas_pagar"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_access_groups: {
+        Row: {
+          created_at: string
+          group_id: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          group_id: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          group_id?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_access_groups_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "access_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      user_has_permission: {
+        Args: { _action: string; _module: string; _user_id: string }
+        Returns: boolean
+      }
+      user_is_admin: { Args: { _user_id: string }; Returns: boolean }
     }
     Enums: {
+      conta_status: "pendente" | "pago" | "atrasado"
       frente_tipo: "Japa" | "Trattoria" | "Ambas"
       setor_tipo: "Garçom" | "Cozinha" | "Administrativo"
     }
@@ -316,6 +594,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      conta_status: ["pendente", "pago", "atrasado"],
       frente_tipo: ["Japa", "Trattoria", "Ambas"],
       setor_tipo: ["Garçom", "Cozinha", "Administrativo"],
     },
