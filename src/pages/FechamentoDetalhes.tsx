@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Utensils, ArrowLeft, Loader2, TrendingUp, Users, Calendar, AlertTriangle } from 'lucide-react';
 import { SummaryCard } from '@/components/SummaryCard';
 import { PaymentTable } from '@/components/PaymentTable';
+import { CashReconciliation } from '@/components/CashReconciliation';
 import { WhatsAppButton } from '@/components/WhatsAppButton';
 
 interface Fechamento {
@@ -34,8 +35,16 @@ interface Fechamento {
   created_at: string;
 }
 
+interface Despesa {
+  id: string;
+  descricao: string;
+  valor: number;
+  categoria: string;
+}
+
 const FechamentoDetalhes = () => {
   const [fechamento, setFechamento] = useState<Fechamento | null>(null);
+  const [despesas, setDespesas] = useState<Despesa[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
@@ -43,9 +52,9 @@ const FechamentoDetalhes = () => {
   const { toast } = useToast();
 
   useEffect(() => { if (!authLoading && !user) navigate('/auth'); }, [user, authLoading, navigate]);
-  useEffect(() => { if (user && id) fetchFechamento(); }, [user, id]);
+  useEffect(() => { if (user && id) fetchData(); }, [user, id]);
 
-  const fetchFechamento = async () => {
+  const fetchData = async () => {
     setIsLoading(true);
     try {
       const { data, error } = await supabase.from('fechamentos').select('*').eq('id', id).maybeSingle();
@@ -55,7 +64,15 @@ const FechamentoDetalhes = () => {
         navigate('/historico');
         return;
       }
-      setFechamento(data as unknown as Fechamento);
+      const fech = data as unknown as Fechamento;
+      setFechamento(fech);
+
+      // Fetch despesas for the same date
+      const { data: despData } = await supabase
+        .from('despesas')
+        .select('id, descricao, valor, categoria')
+        .eq('data', fech.data);
+      setDespesas((despData || []) as Despesa[]);
     } catch (error) {
       console.error('Error fetching fechamento:', error);
       toast({ title: "Erro ao carregar", variant: "destructive" });
@@ -190,13 +207,18 @@ const FechamentoDetalhes = () => {
           </div>
 
           {/* Restaurant Cards */}
-          <div className="grid gap-6 md:grid-cols-3">
+          <div className={`grid gap-6 ${dashboardData.hasHippocampus ? 'md:grid-cols-3' : 'md:grid-cols-2'}`}>
             <SummaryCard restaurante="TRATTORIA" totalValor={dashboardData.trattoria.totalValor} totalAcrescimo={dashboardData.trattoria.totalAcrescimo} totalGeral={dashboardData.trattoria.totalGeral} comissaoGarcom={dashboardData.trattoria.comissaoGarcom} />
             <SummaryCard restaurante="JAPA" totalValor={dashboardData.japa.totalValor} totalAcrescimo={dashboardData.japa.totalAcrescimo} totalGeral={dashboardData.japa.totalGeral} comissaoGarcom={dashboardData.japa.comissaoGarcom} />
-            <SummaryCard restaurante="HIPPOCAMPUS" totalValor={dashboardData.hippocampus.totalValor} totalAcrescimo={dashboardData.hippocampus.totalAcrescimo} totalGeral={dashboardData.hippocampus.totalGeral} comissaoGarcom={dashboardData.hippocampus.comissaoGarcom} />
+            {dashboardData.hasHippocampus && (
+              <SummaryCard restaurante="HIPPOCAMPUS" totalValor={dashboardData.hippocampus.totalValor} totalAcrescimo={dashboardData.hippocampus.totalAcrescimo} totalGeral={dashboardData.hippocampus.totalGeral} comissaoGarcom={dashboardData.hippocampus.comissaoGarcom} />
+            )}
           </div>
 
-          <PaymentTable trattoria={dashboardData.trattoria} japa={dashboardData.japa} hippocampus={dashboardData.hippocampus} />
+          <PaymentTable trattoria={dashboardData.trattoria} japa={dashboardData.japa} hippocampus={dashboardData.hasHippocampus ? dashboardData.hippocampus : undefined} />
+
+          {/* Cash Reconciliation */}
+          <CashReconciliation totalDinheiro={dashboardData.totalDinheiro} despesas={despesas} />
         </div>
       </main>
     </div>

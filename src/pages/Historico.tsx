@@ -178,7 +178,9 @@ const Historico = () => {
                   <TableHead>Data</TableHead>
                   <TableHead className="text-right">Trattoria</TableHead>
                   <TableHead className="text-right">Japa</TableHead>
-                  <TableHead className="text-right">Hippocampus</TableHead>
+                  {fechamentos.some(f => Number(f.hippocampus_total || 0) > 0) && (
+                    <TableHead className="text-right">Hippocampus</TableHead>
+                  )}
                   <TableHead className="text-right">Total Geral</TableHead>
                   <TableHead className="w-[120px]">Ações</TableHead>
                 </TableRow>
@@ -195,9 +197,11 @@ const Historico = () => {
                     <TableCell className="text-right text-japa-foreground">
                       {formatCurrency(Number(fechamento.japa_total))}
                     </TableCell>
-                    <TableCell className="text-right text-hippocampus-foreground">
-                      {formatCurrency(Number(fechamento.hippocampus_total || 0))}
-                    </TableCell>
+                    {fechamentos.some(f => Number(f.hippocampus_total || 0) > 0) && (
+                      <TableCell className="text-right text-hippocampus-foreground">
+                        {formatCurrency(Number(fechamento.hippocampus_total || 0))}
+                      </TableCell>
+                    )}
                     <TableCell className="text-right font-semibold">
                       {formatCurrency(Number(fechamento.total_geral))}
                     </TableCell>
