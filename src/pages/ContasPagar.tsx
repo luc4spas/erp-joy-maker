@@ -13,7 +13,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Plus, Loader2, FileText, Eye, Trash2 } from 'lucide-react';
+import { Plus, Loader2, FileText, Eye, Trash2, Calendar as CalendarIcon } from 'lucide-react';
 import { format, addMonths, setDate } from 'date-fns';
 import { formatCurrency } from '@/lib/processData';
 import { NovoFornecedorDialog } from '@/components/contas-pagar/NovoFornecedorDialog';
@@ -55,6 +55,9 @@ export default function ContasPagar() {
   const [parcelasDialog, setParcelasDialog] = useState(false);
   const [selectedContaParcelas, setSelectedContaParcelas] = useState<Parcela[]>([]);
   const [selectedContaId, setSelectedContaId] = useState<string>('');
+  
+  // Estado para a data de pagamento selecionada na baixa
+  const [paymentDate, setPaymentDate] = useState<string>(format(new Date(), 'yyyy-MM-dd'));
 
   const canCreate = hasPermission('contas_pagar', 'create');
   const canEdit = hasPermission('contas_pagar', 'edit');
@@ -78,7 +81,6 @@ export default function ContasPagar() {
 
   const fetchContas = async () => {
     setLoading(true);
-    // Removido o filtro de usuário para o RLS fazer o controle (Admin vê tudo, Operador vê os dele)
     const { data } = await supabase.from('contas_pagar')
       .select('*, fornecedores(nome), empresas(nome)')
       .order('created_at', { ascending: false });
@@ -87,7 +89,6 @@ export default function ContasPagar() {
   };
 
   const fetchEmpresas = async () => {
-    // Removido o filtro de usuário para o Operador poder ver
     const { data } = await supabase.from('empresas')
       .select('id, nome')
       .eq('ativo', true)
@@ -96,7 +97,6 @@ export default function ContasPagar() {
   };
 
   const fetchFornecedores = async () => {
-    // Removido o filtro de usuário para o Operador poder ver
     const { data } = await supabase.from('fornecedores')
       .select('id, nome')
       .eq('ativo', true)
@@ -162,17 +162,21 @@ export default function ContasPagar() {
     setSelectedContaParcelas((data as any) || []);
     setSelectedContaId(contaId);
     setParcelasDialog(true);
+    setPaymentDate(format(new Date(), 'yyyy-MM-dd')); // Reseta para hoje ao abrir
   };
 
-  const updateParcelaStatus = async (parcelaId: string, status: 'pendente' | 'pago' | 'atrasado', valorPago?: number) => {
+  const updateParcelaStatus = async (parcelaId: string, status: 'pendente' | 'pago' | 'atrasado', valorPago?: number, dataManual?: string) => {
     const updateData: any = { status };
     if (status === 'pago') {
-      updateData.data_pagamento = format(new Date(), 'yyyy-MM-dd');
+      updateData.data_pagamento = dataManual || paymentDate;
       if (valorPago !== undefined) updateData.valor_pago = valorPago;
-    } else { updateData.data_pagamento = null; updateData.valor_pago = 0; }
+    } else { 
+      updateData.data_pagamento = null; 
+      updateData.valor_pago = 0; 
+    }
     await supabase.from('parcelas_pagar').update(updateData).eq('id', parcelaId);
     viewParcelas(selectedContaId);
-    toast({ title: 'Parcela atualizada!' });
+    toast({ title: status === 'pago' ? 'Pagamento realizado!' : 'Parcela estornada!' });
   };
 
   const deleteConta = async (id: string) => {
@@ -273,18 +277,18 @@ export default function ContasPagar() {
       </Tabs>
 
       <Dialog open={parcelasDialog} onOpenChange={setParcelasDialog}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader><DialogTitle>Parcelas</DialogTitle></DialogHeader>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>Detalhamento de Parcelas</DialogTitle></DialogHeader>
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>#</TableHead>
                 <TableHead>Vencimento</TableHead>
                 <TableHead className="text-right">Valor</TableHead>
-                <TableHead className="text-right">Pago</TableHead>
+                <TableHead className="text-right">Valor Pago</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead>Pagamento</TableHead>
-                {canEdit && <TableHead>Ações</TableHead>}
+                <TableHead>Data Pagto</TableHead>
+                {canEdit && <TableHead className="text-center w-[250px]">Ações de Baixa</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -298,9 +302,34 @@ export default function ContasPagar() {
                   <TableCell>{p.data_pagamento ? format(new Date(p.data_pagamento + 'T12:00:00'), 'dd/MM/yyyy') : '-'}</TableCell>
                   {canEdit && (
                     <TableCell>
-                      <div className="flex gap-1">
-                        {p.status !== 'pago' && <Button variant="outline" size="sm" onClick={() => updateParcelaStatus(p.id, 'pago', p.valor_original)}>Pagar</Button>}
-                        {p.status === 'pago' && <Button variant="outline" size="sm" onClick={() => updateParcelaStatus(p.id, 'pendente')}>Estornar</Button>}
+                      <div className="flex items-center justify-center gap-2">
+                        {p.status !== 'pago' ? (
+                          <>
+                            <Input 
+                              type="date" 
+                              className="w-[130px] h-8 text-xs" 
+                              defaultValue={format(new Date(), 'yyyy-MM-dd')}
+                              onChange={(e) => setPaymentDate(e.target.value)}
+                            />
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              className="h-8 bg-green-50 hover:bg-green-100 text-green-700 border-green-200"
+                              onClick={() => updateParcelaStatus(p.id, 'pago', p.valor_original)}
+                            >
+                              Pagar
+                            </Button>
+                          </>
+                        ) : (
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            className="h-8"
+                            onClick={() => updateParcelaStatus(p.id, 'pendente')}
+                          >
+                            Estornar
+                          </Button>
+                        )}
                       </div>
                     </TableCell>
                   )}
