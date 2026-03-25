@@ -438,6 +438,39 @@ export type Database = {
           },
         ]
       }
+      profiles: {
+        Row: {
+          ativo: boolean
+          cargo: string
+          created_at: string
+          email: string
+          id: string
+          nome: string
+          unidade: string
+          user_id: string
+        }
+        Insert: {
+          ativo?: boolean
+          cargo?: string
+          created_at?: string
+          email: string
+          id?: string
+          nome: string
+          unidade?: string
+          user_id: string
+        }
+        Update: {
+          ativo?: boolean
+          cargo?: string
+          created_at?: string
+          email?: string
+          id?: string
+          nome?: string
+          unidade?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_access_groups: {
         Row: {
           created_at: string
