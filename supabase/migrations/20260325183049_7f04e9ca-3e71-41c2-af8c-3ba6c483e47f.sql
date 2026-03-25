@@ -1,0 +1,1 @@
+INSERT INTO public.user_access_groups (user_id, group_id) VALUES ('2cf4636b-c8d9-44d6-bcd1-b3b157dd8bf9', '81569607-25ee-4f85-be55-ad63c7a73c23');
