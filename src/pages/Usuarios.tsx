@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Plus, Pencil, Trash2, UserPlus, Shield } from 'lucide-react';
+import { Loader2, Pencil, Trash2, UserPlus, Shield } from 'lucide-react';
 
 interface Profile {
   id: string;
@@ -25,11 +25,16 @@ interface Profile {
   email_confirmed?: boolean;
 }
 
-const CARGOS = ['Admin', 'Gerente', 'Operador', 'Financeiro'];
+interface AccessGroup {
+  id: string;
+  name: string;
+}
+
 const UNIDADES = ['Todas', 'Trattoria', 'Japa', 'Hippocampus'];
 
 const Usuarios = () => {
   const [users, setUsers] = useState<Profile[]>([]);
+  const [groups, setGroups] = useState<AccessGroup[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<Profile | null>(null);
@@ -39,12 +44,17 @@ const Usuarios = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [unidade, setUnidade] = useState('Todas');
-  const [cargo, setCargo] = useState('Operador');
+  const [groupId, setGroupId] = useState('');
 
   const { user } = useAuth();
   const { toast } = useToast();
 
-  useEffect(() => { if (user) fetchUsers(); }, [user]);
+  useEffect(() => { if (user) { fetchUsers(); fetchGroups(); } }, [user]);
+
+  const fetchGroups = async () => {
+    const { data } = await supabase.from('access_groups').select('id, name').order('name');
+    if (data) setGroups(data);
+  };
 
   const callEdgeFunction = async (body: any) => {
     const { data: { session } } = await supabase.auth.getSession();
@@ -75,13 +85,13 @@ const Usuarios = () => {
 
   const openCreate = () => {
     setEditingUser(null);
-    setNome(''); setEmail(''); setPassword(''); setUnidade('Todas'); setCargo('Operador');
+    setNome(''); setEmail(''); setPassword(''); setUnidade('Todas'); setGroupId('');
     setDialogOpen(true);
   };
 
   const openEdit = (u: Profile) => {
     setEditingUser(u);
-    setNome(u.nome); setEmail(u.email); setPassword(''); setUnidade(u.unidade); setCargo(u.cargo);
+    setNome(u.nome); setEmail(u.email); setPassword(''); setUnidade(u.unidade); setGroupId('');
     setDialogOpen(true);
   };
 
@@ -94,9 +104,16 @@ const Usuarios = () => {
       toast({ title: 'Erro', description: 'Senha é obrigatória para novos usuários.', variant: 'destructive' });
       return;
     }
+    if (!editingUser && !groupId) {
+      toast({ title: 'Erro', description: 'Selecione um grupo de acesso.', variant: 'destructive' });
+      return;
+    }
 
     setIsSaving(true);
     try {
+      const selectedGroup = groups.find(g => g.id === groupId);
+      const cargo = selectedGroup?.name || 'Operador';
+
       if (editingUser) {
         await callEdgeFunction({
           action: 'update',
@@ -106,7 +123,7 @@ const Usuarios = () => {
         });
         toast({ title: 'Sucesso', description: 'Usuário atualizado.' });
       } else {
-        await callEdgeFunction({ action: 'create', email, password, nome, unidade, cargo });
+        await callEdgeFunction({ action: 'create', email, password, nome, unidade, cargo, group_id: groupId });
         toast({ title: 'Sucesso', description: 'Usuário criado.' });
       }
       setDialogOpen(false);
@@ -254,11 +271,11 @@ const Usuarios = () => {
               </Select>
             </div>
             <div>
-              <Label>Cargo</Label>
-              <Select value={cargo} onValueChange={setCargo}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+              <Label>Grupo de Acesso</Label>
+              <Select value={groupId} onValueChange={setGroupId}>
+                <SelectTrigger><SelectValue placeholder="Selecione o grupo" /></SelectTrigger>
                 <SelectContent>
-                  {CARGOS.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                  {groups.map(g => <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
