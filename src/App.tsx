@@ -44,6 +44,7 @@ const App = () => (
               <Route path="/empresas" element={<ProtectedRoute module="administracao"><Empresas /></ProtectedRoute>} />
               <Route path="/fornecedores" element={<ProtectedRoute module="contas_pagar"><Fornecedores /></ProtectedRoute>} />
               <Route path="/grupos-acesso" element={<ProtectedRoute module="administracao"><GruposAcesso /></ProtectedRoute>} />
+              <Route path="/usuarios" element={<ProtectedRoute module="administracao"><Usuarios /></ProtectedRoute>} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>
