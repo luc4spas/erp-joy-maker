@@ -39,11 +39,16 @@ interface Fechamento {
   trattoria_total: number;
   trattoria_taxa: number;
   trattoria_valor_itens: number;
+  hippocampus_total: number;
+  hippocampus_taxa: number;
+  hippocampus_valor_itens: number;
   total_geral: number;
   comissao_japa: number;
   comissao_trattoria: number;
+  comissao_hippocampus: number;
   pagamentos_japa: Record<string, number>;
   pagamentos_trattoria: Record<string, number>;
+  pagamentos_hippocampus: Record<string, number> | null;
   created_at: string;
 }
 
