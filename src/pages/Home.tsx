@@ -153,7 +153,7 @@ const Home = () => {
   const restaurantShare = [
     { name: 'Trattoria', value: summary.trattoria.totalGeral },
     { name: 'Japa', value: summary.japa.totalGeral },
-    ...(summary.hasHippocampus ? [{ name: 'Hippocampus', value: summary.hippocampus.totalGeral }] : []),
+    { name: 'Hippocampus', value: summary.hippocampus.totalGeral },
   ];
 
   return (
@@ -212,17 +212,15 @@ const Home = () => {
               </div>
             </div>
 
-            <div className={`grid gap-6 ${summary.hasHippocampus ? 'md:grid-cols-3' : 'md:grid-cols-2'}`}>
+            <div className="grid gap-6 md:grid-cols-3">
               <SummaryCard restaurante="TRATTORIA" totalValor={summary.trattoria.totalValor} totalAcrescimo={summary.trattoria.totalAcrescimo} totalGeral={summary.trattoria.totalGeral} comissaoGarcom={summary.trattoria.comissaoGarcom} />
               <SummaryCard restaurante="JAPA" totalValor={summary.japa.totalValor} totalAcrescimo={summary.japa.totalAcrescimo} totalGeral={summary.japa.totalGeral} comissaoGarcom={summary.japa.comissaoGarcom} />
-              {summary.hasHippocampus && (
-                <SummaryCard restaurante="HIPPOCAMPUS" totalValor={summary.hippocampus.totalValor} totalAcrescimo={summary.hippocampus.totalAcrescimo} totalGeral={summary.hippocampus.totalGeral} comissaoGarcom={summary.hippocampus.comissaoGarcom} />
-              )}
+              <SummaryCard restaurante="HIPPOCAMPUS" totalValor={summary.hippocampus.totalValor} totalAcrescimo={summary.hippocampus.totalAcrescimo} totalGeral={summary.hippocampus.totalGeral} comissaoGarcom={summary.hippocampus.comissaoGarcom} />
             </div>
 
             <ConsolidatedPaymentTable
               trattoria={summary.trattoria} japa={summary.japa}
-              hippocampus={summary.hasHippocampus ? summary.hippocampus : undefined}
+              hippocampus={summary.hippocampus}
               title="Consolidado de Pagamentos"
               subtitle="Soma acumulada por método de recebimento no período"
             />

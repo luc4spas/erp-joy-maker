@@ -18,7 +18,8 @@ import {
   Building2,
   Truck,
   Shield,
-  ChevronDown
+  ChevronDown,
+  UserCog
 } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
@@ -48,6 +49,7 @@ const navItems: NavItem[] = [
   { path: '/fornecedores', label: 'Fornecedores', icon: Truck, module: 'contas_pagar' },
   { path: '/empresas', label: 'Empresas', icon: Building2, module: 'administracao' },
   { path: '/grupos-acesso', label: 'Grupos de Acesso', icon: Shield, module: 'administracao' },
+  { path: '/usuarios', label: 'Usuários', icon: UserCog, module: 'administracao' },
 ];
 
 export function AppLayout({ children, title, subtitle }: AppLayoutProps) {
