@@ -7,7 +7,7 @@ import { formatCurrency } from '@/lib/processData';
 import { formatDateBR } from '@/lib/dateUtils';
 import { AppLayout } from '@/components/AppLayout';
 import { Button } from '@/components/ui/button';
-import { Loader2, Printer, DollarSign, Users, Check, Clock, ChevronLeft, ChevronRight, Calendar, FileText } from 'lucide-react';
+import { Loader2, Printer, Calendar, FileText, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { format, startOfWeek, endOfWeek, addWeeks, subWeeks } from 'date-fns';
@@ -44,41 +44,15 @@ interface RateioItem {
   pagamentoId?: string;
 }
 
-interface SectorTotals {
-  garcomJapa: number;
-  cozinhaJapa: number;
-  garcomTrattoria: number;
-  cozinhaTrattoria: number;
-  caixaAdmCumins: number;
-  empresa: number;
-}
-
-interface SectorCounts {
-  garcomJapa: number;
-  cozinhaJapa: number;
-  garcomTrattoria: number;
-  cozinhaTrattoria: number;
-  caixaAdmCumins: number;
-}
-
 const Rateio = () => {
   const [funcionarios, setFuncionarios] = useState<Funcionario[]>([]);
   const [fechamentos, setFechamentos] = useState<Fechamento[]>([]);
   const [rateio, setRateio] = useState<RateioItem[]>([]);
-  const [sectorTotals, setSectorTotals] = useState<SectorTotals>({
-    garcomJapa: 0,
-    cozinhaJapa: 0,
-    garcomTrattoria: 0,
-    cozinhaTrattoria: 0,
-    caixaAdmCumins: 0,
-    empresa: 0
+  const [sectorTotals, setSectorTotals] = useState({
+    garcomJapa: 0, cozinhaJapa: 0, garcomTrattoria: 0, cozinhaTrattoria: 0, caixaAdmCumins: 0, empresa: 0
   });
-  const [sectorCounts, setSectorCounts] = useState<SectorCounts>({
-    garcomJapa: 0,
-    cozinhaJapa: 0,
-    garcomTrattoria: 0,
-    cozinhaTrattoria: 0,
-    caixaAdmCumins: 0
+  const [sectorCounts, setSectorCounts] = useState({
+    garcomJapa: 0, cozinhaJapa: 0, garcomTrattoria: 0, cozinhaTrattoria: 0, caixaAdmCumins: 0
   });
   const [isLoading, setIsLoading] = useState(true);
   const [weekStart, setWeekStart] = useState<Date>(() => startOfWeek(new Date(), { weekStartsOn: 0 }));
@@ -147,14 +121,15 @@ const Rateio = () => {
       return;
     }
 
-    const totalComissaoJapa = fechs.reduce((sum, f) => sum + Number(f.comissao_japa), 0);
-    const totalComissaoTrattoria = fechs.reduce((sum, f) => sum + Number(f.comissao_trattoria), 0);
-    const totalComissao8Porcento = totalComissaoJapa + totalComissaoTrattoria;
+    // Variáveis locais exclusivas para o cálculo
+    const calcComissaoJapa = fechs.reduce((sum, f) => sum + Number(f.comissao_japa || 0), 0);
+    const calcComissaoTrattoria = fechs.reduce((sum, f) => sum + Number(f.comissao_trattoria || 0), 0);
+    const calcComissao8Porcento = calcComissaoJapa + calcComissaoTrattoria;
     
-    const totalTaxaJapa = fechs.reduce((sum, f) => sum + Number(f.japa_taxa), 0);
-    const totalTaxaTrattoria = fechs.reduce((sum, f) => sum + Number(f.trattoria_taxa), 0);
-    const totalTaxaServico = totalTaxaJapa + totalTaxaTrattoria;
-    const empresaValor = totalTaxaServico - totalComissao8Porcento;
+    const calcTaxaJapa = fechs.reduce((sum, f) => sum + Number(f.japa_taxa || 0), 0);
+    const calcTaxaTrattoria = fechs.reduce((sum, f) => sum + Number(f.trattoria_taxa || 0), 0);
+    const calcTaxaServico = calcTaxaJapa + calcTaxaTrattoria;
+    const empresaValor = calcTaxaServico - calcComissao8Porcento;
     
     const totalDias = fechs.length;
 
@@ -162,11 +137,11 @@ const Rateio = () => {
     const percentCozinha = 0.275 / 0.8; 
     const percentAdmin = 0.05 / 0.8; 
     
-    const japaGarcom = totalComissaoJapa * percentGarcom;
-    const japaCozinha = totalComissaoJapa * percentCozinha;
-    const trattoriaGarcom = totalComissaoTrattoria * percentGarcom;
-    const trattoriaCozinha = totalComissaoTrattoria * percentCozinha;
-    const adminTotal = totalComissao8Porcento * percentAdmin;
+    const japaGarcom = calcComissaoJapa * percentGarcom;
+    const japaCozinha = calcComissaoJapa * percentCozinha;
+    const trattoriaGarcom = calcComissaoTrattoria * percentGarcom;
+    const trattoriaCozinha = calcComissaoTrattoria * percentCozinha;
+    const adminTotal = calcComissao8Porcento * percentAdmin;
 
     const garcomJapaFuncs = funcs.filter(f => f.setor === 'Garçom' && (f.frente === 'Japa' || f.frente === 'Ambas'));
     const garcomTrattoriaFuncs = funcs.filter(f => f.setor === 'Garçom' && (f.frente === 'Trattoria' || f.frente === 'Ambas'));
@@ -215,30 +190,32 @@ const Rateio = () => {
       }
     };
 
-    garcomJapaFuncs.forEach(f => addToResult(f, japaGarcom / garcomJapaFuncs.length, 0));
+    garcomJapaFuncs.forEach(f => addToResult(f, garcomJapaFuncs.length > 0 ? japaGarcom / garcomJapaFuncs.length : 0, 0));
     garcomTrattoriaFuncs.forEach(f => {
+      const valorParaAdicionar = garcomTrattoriaFuncs.length > 0 ? trattoriaGarcom / garcomTrattoriaFuncs.length : 0;
       const existing = result.get(f.id);
       if (existing) {
-        existing.valorTrattoria += trattoriaGarcom / garcomTrattoriaFuncs.length;
+        existing.valorTrattoria += valorParaAdicionar;
         existing.valor = existing.valorJapa + existing.valorTrattoria;
       } else {
-        addToResult(f, 0, trattoriaGarcom / garcomTrattoriaFuncs.length);
+        addToResult(f, 0, valorParaAdicionar);
       }
     });
-    cozinhaJapaFuncs.forEach(f => addToResult(f, japaCozinha / cozinhaJapaFuncs.length, 0));
+    cozinhaJapaFuncs.forEach(f => addToResult(f, cozinhaJapaFuncs.length > 0 ? japaCozinha / cozinhaJapaFuncs.length : 0, 0));
     cozinhaTrattoriaFuncs.forEach(f => {
+      const valorParaAdicionar = cozinhaTrattoriaFuncs.length > 0 ? trattoriaCozinha / cozinhaTrattoriaFuncs.length : 0;
       const existing = result.get(f.id);
       if (existing) {
-        existing.valorTrattoria += trattoriaCozinha / cozinhaTrattoriaFuncs.length;
+        existing.valorTrattoria += valorParaAdicionar;
         existing.valor = existing.valorJapa + existing.valorTrattoria;
       } else {
-        addToResult(f, 0, trattoriaCozinha / cozinhaTrattoriaFuncs.length);
+        addToResult(f, 0, valorParaAdicionar);
       }
     });
     adminFuncs.forEach(f => {
-      const valorAdmin = adminTotal / adminFuncs.length;
-      const propJapa = totalComissaoJapa / totalComissao8Porcento;
-      const propTrattoria = totalComissaoTrattoria / totalComissao8Porcento;
+      const valorAdmin = adminFuncs.length > 0 ? adminTotal / adminFuncs.length : 0;
+      const propJapa = calcComissao8Porcento > 0 ? calcComissaoJapa / calcComissao8Porcento : 0;
+      const propTrattoria = calcComissao8Porcento > 0 ? calcComissaoTrattoria / calcComissao8Porcento : 0;
       addToResult(f, valorAdmin * propJapa, valorAdmin * propTrattoria);
     });
 
@@ -268,56 +245,18 @@ const Rateio = () => {
     }
   };
 
-  // Função para imprimir recibo individual
   const handlePrint = (item: RateioItem) => {
     const periodoInicio = formatDateBR(format(weekStart, 'yyyy-MM-dd'));
     const periodoFim = formatDateBR(format(weekEnd, 'yyyy-MM-dd'));
-    const detalhes: string[] = [];
-    if (item.valorJapa > 0) detalhes.push(`<p><strong>Japa:</strong> ${formatCurrency(item.valorJapa)}</p>`);
-    if (item.valorTrattoria > 0) detalhes.push(`<p><strong>Trattoria:</strong> ${formatCurrency(item.valorTrattoria)}</p>`);
     
     const w = window.open('', '_blank');
     if (w) {
-      w.document.write(getReceiptHtml(item, periodoInicio, periodoFim, detalhes));
-      w.document.close();
-      w.print();
-    }
-  };
-
-  // NOVA FUNÇÃO: Imprimir todos os recibos em um único PDF
-  const handlePrintAll = () => {
-    const periodoInicio = formatDateBR(format(weekStart, 'yyyy-MM-dd'));
-    const periodoFim = formatDateBR(format(weekEnd, 'yyyy-MM-dd'));
-    
-    const w = window.open('', '_blank');
-    if (w) {
-      const allReceiptsContent = rateio.map(item => {
-        const detalhes: string[] = [];
-        if (item.valorJapa > 0) detalhes.push(`<p><strong>Japa:</strong> ${formatCurrency(item.valorJapa)}</p>`);
-        if (item.valorTrattoria > 0) detalhes.push(`<p><strong>Trattoria:</strong> ${formatCurrency(item.valorTrattoria)}</p>`);
-        return `
-          <div class="receipt-page">
-            ${getReceiptBody(item, periodoInicio, periodoFim, detalhes)}
-          </div>
-        `;
-      }).join('');
-
       w.document.write(`
         <html>
           <head>
-            <title>Recibos de Comissões - ${periodoInicio}</title>
+            <title>Recibo - ${item.funcionario.nome}</title>
             <style>
-              body { font-family: Arial, sans-serif; padding: 0; margin: 0; }
-              .receipt-page { 
-                padding: 40px; 
-                max-width: 800px; 
-                margin: 0 auto; 
-                page-break-after: always; 
-                border-bottom: 1px dashed #ccc;
-              }
-              @media print {
-                .receipt-page { border-bottom: none; }
-              }
+              body { font-family: Arial, sans-serif; padding: 40px; max-width: 600px; margin: 0 auto; }
               h1 { font-size: 20px; text-align: center; border-bottom: 2px solid #000; padding-bottom: 10px; }
               .info { margin: 20px 0; }
               .info p { margin: 8px 0; }
@@ -329,7 +268,18 @@ const Rateio = () => {
             </style>
           </head>
           <body>
-            ${allReceiptsContent}
+            <h1>RECIBO DE PAGAMENTO</h1>
+            <div class="periodo"><strong>Referente ao período de ${periodoInicio} a ${periodoFim}</strong></div>
+            <div class="info">
+              <p><strong>Nome:</strong> ${item.funcionario.nome}</p>
+              <p><strong>Setor:</strong> ${item.funcionario.setor}</p>
+            </div>
+            <div class="valores">
+              <p><strong>Valor Japa:</strong> ${formatCurrency(item.valorJapa)}</p>
+              <p><strong>Valor Trattoria:</strong> ${formatCurrency(item.valorTrattoria)}</p>
+            </div>
+            <p class="total">VALOR TOTAL: ${formatCurrency(item.valor)}</p>
+            <div class="assinatura">Assinatura do Colaborador</div>
           </body>
         </html>
       `);
@@ -338,46 +288,47 @@ const Rateio = () => {
     }
   };
 
-  // Auxiliares para o HTML do recibo
-  const getReceiptBody = (item: RateioItem, inicio: string, fim: string, detalhes: string[]) => `
-    <h1>RECIBO DE PAGAMENTO</h1>
-    <div class="periodo"><strong>Referente ao período de ${inicio} a ${fim}</strong></div>
-    <div class="info">
-      <p><strong>Nome:</strong> ${item.funcionario.nome}</p>
-      <p><strong>Setor:</strong> ${item.funcionario.setor}</p>
-      <p><strong>Frente:</strong> ${item.funcionario.frente}</p>
-    </div>
-    <div class="valores">
-      <h3>Detalhamento por Frente:</h3>
-      ${detalhes.join('')}
-      <p><strong>Dias com fechamento:</strong> ${item.totalDias} dia(s)</p>
-    </div>
-    <p class="total">VALOR TOTAL: ${formatCurrency(item.valor)}</p>
-    <div class="assinatura">Assinatura do Colaborador</div>
-  `;
+  const handlePrintAll = () => {
+    if (rateio.length === 0) {
+      toast({ title: "Aviso", description: "Não há dados para imprimir nesta semana.", variant: "destructive" });
+      return;
+    }
 
-  const getReceiptHtml = (item: RateioItem, inicio: string, fim: string, detalhes: string[]) => `
-    <html>
-      <head>
-        <title>Recibo - ${item.funcionario.nome}</title>
-        <style>
-          body { font-family: Arial, sans-serif; padding: 40px; max-width: 600px; margin: 0 auto; }
-          h1 { font-size: 20px; text-align: center; border-bottom: 2px solid #000; padding-bottom: 10px; }
-          .info { margin: 20px 0; }
-          .info p { margin: 8px 0; }
-          .info strong { display: inline-block; width: 120px; }
-          .valores { background: #f5f5f5; padding: 15px; border-radius: 8px; margin: 20px 0; }
-          .total { font-size: 18px; font-weight: bold; border-top: 2px solid #000; padding-top: 10px; }
-          .assinatura { margin-top: 60px; border-top: 1px solid #000; padding-top: 10px; text-align: center; }
-          .periodo { background: #e8f4f8; padding: 10px; border-radius: 5px; text-align: center; margin-bottom: 20px; }
-        </style>
-      </head>
-      <body>${getReceiptBody(item, inicio, fim, detalhes)}</body>
-    </html>
-  `;
+    const periodoInicio = formatDateBR(format(weekStart, 'yyyy-MM-dd'));
+    const periodoFim = formatDateBR(format(weekEnd, 'yyyy-MM-dd'));
+    
+    const w = window.open('', '_blank');
+    if (w) {
+      const content = rateio.map(item => `
+        <div style="page-break-after: always; padding: 40px; max-width: 800px; margin: 0 auto; font-family: Arial, sans-serif;">
+          <h1 style="font-size: 20px; text-align: center; border-bottom: 2px solid #000; padding-bottom: 10px;">RECIBO DE PAGAMENTO</h1>
+          <div style="background: #e8f4f8; padding: 10px; border-radius: 5px; text-align: center; margin-bottom: 20px;">
+            <strong>Referente ao período de ${periodoInicio} a ${periodoFim}</strong>
+          </div>
+          <div style="margin: 20px 0;">
+            <p style="margin: 8px 0;"><strong>Nome:</strong> ${item.funcionario.nome}</p>
+            <p style="margin: 8px 0;"><strong>Setor:</strong> ${item.funcionario.setor}</p>
+          </div>
+          <div style="background: #f5f5f5; padding: 15px; border-radius: 8px; margin: 20px 0;">
+            <p><strong>Valor Japa:</strong> ${formatCurrency(item.valorJapa)}</p>
+            <p><strong>Valor Trattoria:</strong> ${formatCurrency(item.valorTrattoria)}</p>
+          </div>
+          <p style="font-size: 18px; font-weight: bold; border-top: 2px solid #000; padding-top: 10px;">
+            VALOR TOTAL: ${formatCurrency(item.valor)}
+          </p>
+          <div style="margin-top: 60px; border-top: 1px solid #000; padding-top: 10px; text-align: center;">
+            Assinatura do Colaborador
+          </div>
+        </div>
+      `).join('');
+
+      w.document.write(`<html><head><title>Recibos de Comissões</title></head><body>${content}</body></html>`);
+      w.document.close();
+      w.print();
+    }
+  };
 
   const handlePrintSummary = () => {
-    // Mantendo sua função de resumo original...
     const periodoInicio = formatDateBR(format(weekStart, 'yyyy-MM-dd'));
     const periodoFim = formatDateBR(format(weekEnd, 'yyyy-MM-dd'));
     const w = window.open('', '_blank');
@@ -388,11 +339,13 @@ const Rateio = () => {
     }
   };
 
-  const goToPreviousWeek = () => setWeekStart(subWeeks(weekStart, 1));
-  const goToNextWeek = () => setWeekStart(addWeeks(weekStart, 1));
-  const goToCurrentWeek = () => setWeekStart(startOfWeek(new Date(), { weekStartsOn: 0 }));
+  // Prepara variáveis com nomes seguros para evitar o erro "is not defined" no JSX
+  const comissaoJapaFinal = fechamentos.reduce((sum, f) => sum + Number(f.comissao_japa || 0), 0);
+  const comissaoTrattoriaFinal = fechamentos.reduce((sum, f) => sum + Number(f.comissao_trattoria || 0), 0);
+  const taxaJapaFinal = fechamentos.reduce((sum, f) => sum + Number(f.japa_taxa || 0), 0);
+  const taxaTrattoriaFinal = fechamentos.reduce((sum, f) => sum + Number(f.trattoria_taxa || 0), 0);
+  const totalTaxaServicoFinal = taxaJapaFinal + taxaTrattoriaFinal;
 
-  // Preparar dados para os componentes de resumo
   const sectorTotalsList = [
     { label: 'GARÇOM JAPA', value: sectorTotals.garcomJapa, colorClass: 'bg-japa-light' },
     { label: 'COZINHA JAPA', value: sectorTotals.cozinhaJapa, colorClass: 'bg-japa-light' },
@@ -416,9 +369,11 @@ const Rateio = () => {
   return (
     <AppLayout title="Rateio Semanal" subtitle="Distribuição de comissões por período">
       <div className="space-y-6 animate-fade-in">
+        
+        {/* CABEÇALHO COM OS BOTÕES - Forçado a aparecer sempre */}
         <div className="bg-card rounded-xl p-4 shadow-card border border-border flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <Button variant="outline" size="icon" onClick={goToPreviousWeek}><ChevronLeft className="w-4 h-4" /></Button>
+            <Button variant="outline" size="icon" onClick={() => setWeekStart(subWeeks(weekStart, 1))}><ChevronLeft className="w-4 h-4" /></Button>
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-lg bg-secondary flex items-center justify-center"><Calendar className="w-5 h-5 text-primary" /></div>
               <div>
@@ -426,24 +381,30 @@ const Rateio = () => {
                 <p className="text-lg font-semibold">{format(weekStart, "dd/MM")} a {format(weekEnd, "dd/MM/yyyy")}</p>
               </div>
             </div>
-            <Button variant="outline" size="icon" onClick={goToNextWeek}><ChevronRight className="w-4 h-4" /></Button>
+            <Button variant="outline" size="icon" onClick={() => setWeekStart(addWeeks(weekStart, 1))}><ChevronRight className="w-4 h-4" /></Button>
           </div>
-          <Button variant="secondary" onClick={goToCurrentWeek}>Semana Atual</Button>
+          
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={handlePrintSummary}>
+              <Printer className="w-4 h-4 mr-2" /> Resumo
+            </Button>
+            <Button 
+              style={{ backgroundColor: '#2563eb', color: 'white' }} 
+              onClick={handlePrintAll}
+            >
+              <FileText className="w-4 h-4 mr-2" /> Imprimir Todos os Recibos
+            </Button>
+          </div>
         </div>
 
         {fechamentos.length > 0 && (
           <div className="space-y-4">
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={handlePrintSummary}>
-                <Printer className="w-4 h-4 mr-2" /> Resumo
-              </Button>
-              {/* NOVO BOTÃO DE IMPRESSÃO TODOS */}
-              <Button className="bg-primary text-white" onClick={handlePrintAll}>
-                <FileText className="w-4 h-4 mr-2" /> Imprimir Todos os Recibos
-              </Button>
-            </div>
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              <CommissionInputSummary comissaoJapa={totalComissaoJapa} comissaoTrattoria={totalComissaoTrattoria} totalTaxaServico={totalTaxaServico10} />
+              <CommissionInputSummary 
+                comissaoJapa={comissaoJapaFinal} 
+                comissaoTrattoria={comissaoTrattoriaFinal} 
+                totalTaxaServico={totalTaxaServicoFinal} 
+              />
               <SectorDistributionTable distributions={sectorDistributions} />
               <SectorTotalsSummary totals={sectorTotalsList} />
             </div>
