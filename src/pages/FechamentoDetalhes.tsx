@@ -4,9 +4,10 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import { formatCurrency, DashboardData, RestaurantSummary, PaymentMethodData } from '@/lib/processData';
-import { formatDateBR, formatDateLongBR } from '@/lib/dateUtils';
+import { formatDateBR } from '@/lib/dateUtils';
 import { Button } from '@/components/ui/button';
-import { Utensils, ArrowLeft, Loader2, TrendingUp, Users, Calendar } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Utensils, ArrowLeft, Loader2, TrendingUp, Users, Calendar, AlertTriangle } from 'lucide-react';
 import { SummaryCard } from '@/components/SummaryCard';
 import { PaymentTable } from '@/components/PaymentTable';
 import { WhatsAppButton } from '@/components/WhatsAppButton';
@@ -20,11 +21,16 @@ interface Fechamento {
   trattoria_total: number;
   trattoria_taxa: number;
   trattoria_valor_itens: number;
+  hippocampus_total: number;
+  hippocampus_taxa: number;
+  hippocampus_valor_itens: number;
   total_geral: number;
   comissao_japa: number;
   comissao_trattoria: number;
+  comissao_hippocampus: number;
   pagamentos_japa: Record<string, number>;
   pagamentos_trattoria: Record<string, number>;
+  pagamentos_hippocampus: Record<string, number> | null;
   created_at: string;
 }
 
@@ -36,54 +42,31 @@ const FechamentoDetalhes = () => {
   const { user, isLoading: authLoading } = useAuth();
   const { toast } = useToast();
 
-  useEffect(() => {
-    if (!authLoading && !user) {
-      navigate('/auth');
-    }
-  }, [user, authLoading, navigate]);
-
-  useEffect(() => {
-    if (user && id) {
-      fetchFechamento();
-    }
-  }, [user, id]);
+  useEffect(() => { if (!authLoading && !user) navigate('/auth'); }, [user, authLoading, navigate]);
+  useEffect(() => { if (user && id) fetchFechamento(); }, [user, id]);
 
   const fetchFechamento = async () => {
     setIsLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('fechamentos')
-        .select('*')
-        .eq('id', id)
-        .maybeSingle();
-
+      const { data, error } = await supabase.from('fechamentos').select('*').eq('id', id).maybeSingle();
       if (error) throw error;
       if (!data) {
-        toast({
-          title: "Fechamento não encontrado",
-          description: "O registro solicitado não existe.",
-          variant: "destructive",
-        });
+        toast({ title: "Fechamento não encontrado", variant: "destructive" });
         navigate('/historico');
         return;
       }
-      setFechamento(data as Fechamento);
+      setFechamento(data as unknown as Fechamento);
     } catch (error) {
       console.error('Error fetching fechamento:', error);
-      toast({
-        title: "Erro ao carregar",
-        description: "Não foi possível carregar os detalhes do fechamento.",
-        variant: "destructive",
-      });
+      toast({ title: "Erro ao carregar", variant: "destructive" });
       navigate('/historico');
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Convert fechamento to DashboardData format for reusing components
   const convertToDashboardData = (f: Fechamento): DashboardData => {
-    const convertPayments = (payments: Record<string, number>): Record<string, PaymentMethodData> => {
+    const convertPayments = (payments: Record<string, number> | null): Record<string, PaymentMethodData> => {
       const result: Record<string, PaymentMethodData> = {};
       Object.entries(payments || {}).forEach(([method, value]) => {
         result[method] = { valor: 0, acrescimo: 0, frValor: value };
@@ -109,35 +92,39 @@ const FechamentoDetalhes = () => {
       porFormaPagamento: convertPayments(f.pagamentos_japa),
     };
 
-    return {
-      trattoria,
-      japa,
-      rows: [],
-      dataRelatorio: f.data,
+    const hippocampus: RestaurantSummary = {
+      restaurante: 'HIPPOCAMPUS',
+      totalValor: Number(f.hippocampus_valor_itens) || 0,
+      totalAcrescimo: Number(f.hippocampus_taxa) || 0,
+      totalGeral: Number(f.hippocampus_total) || 0,
+      comissaoGarcom: Number(f.comissao_hippocampus) || 0,
+      porFormaPagamento: convertPayments(f.pagamentos_hippocampus),
     };
+
+    const hasHippocampus = hippocampus.totalGeral > 0;
+
+    const totalDinheiro =
+      (trattoria.porFormaPagamento['DINHEIRO']?.frValor || 0) +
+      (japa.porFormaPagamento['DINHEIRO']?.frValor || 0) +
+      (hippocampus.porFormaPagamento['DINHEIRO']?.frValor || 0);
+
+    return { trattoria, japa, hippocampus, hasHippocampus, rows: [], dataRelatorio: f.data, totalDinheiro };
   };
 
   if (authLoading || isLoading) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
-      </div>
-    );
+    return <div className="min-h-screen bg-background flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
   }
 
-  if (!fechamento) {
-    return null;
-  }
+  if (!fechamento) return null;
 
   const dashboardData = convertToDashboardData(fechamento);
   const totalGeral = Number(fechamento.total_geral);
-  const totalItens = Number(fechamento.trattoria_valor_itens) + Number(fechamento.japa_valor_itens);
-  const totalTaxa = Number(fechamento.trattoria_taxa) + Number(fechamento.japa_taxa);
-  const totalComissao = Number(fechamento.comissao_trattoria) + Number(fechamento.comissao_japa);
+  const totalItens = Number(fechamento.trattoria_valor_itens) + Number(fechamento.japa_valor_itens) + Number(fechamento.hippocampus_valor_itens || 0);
+  const totalTaxa = Number(fechamento.trattoria_taxa) + Number(fechamento.japa_taxa) + Number(fechamento.hippocampus_taxa || 0);
+  const totalComissao = Number(fechamento.comissao_trattoria) + Number(fechamento.comissao_japa) + Number(fechamento.comissao_hippocampus || 0);
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
       <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-10">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
@@ -148,22 +135,27 @@ const FechamentoDetalhes = () => {
               <div>
                 <h1 className="text-xl font-bold text-foreground">Detalhes do Fechamento</h1>
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <Calendar className="w-3 h-3" />
-                  {formatDateBR(fechamento.data)}
+                  <Calendar className="w-3 h-3" />{formatDateBR(fechamento.data)}
                 </div>
               </div>
             </div>
             <Button variant="outline" onClick={() => navigate('/historico')}>
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Voltar
+              <ArrowLeft className="w-4 h-4 mr-2" />Voltar
             </Button>
           </div>
         </div>
       </header>
 
-      {/* Main Content */}
       <main className="container mx-auto px-4 py-8">
         <div className="space-y-8 animate-fade-in">
+          {/* Hippocampus Alert */}
+          {dashboardData.hasHippocampus && (
+            <div className="flex items-center gap-3 p-4 rounded-xl bg-hippocampus-light border-2" style={{ borderColor: 'hsl(var(--hippocampus))' }}>
+              <AlertTriangle className="w-5 h-5 text-hippocampus shrink-0" />
+              <Badge className="bg-hippocampus text-white border-0">🐴 Hippocampus Detectado</Badge>
+            </div>
+          )}
+
           {/* Total Card */}
           <div className="bg-gradient-to-r from-primary to-primary/80 rounded-2xl p-6 text-primary-foreground shadow-card">
             <div className="flex items-center gap-4 mb-4">
@@ -175,7 +167,6 @@ const FechamentoDetalhes = () => {
                 <p className="text-3xl font-bold">{formatCurrency(totalGeral)}</p>
               </div>
             </div>
-
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 pt-4 border-t border-primary-foreground/20">
               <div>
                 <p className="text-xs text-primary-foreground/60">Total Itens</p>
@@ -187,43 +178,27 @@ const FechamentoDetalhes = () => {
               </div>
               <div className="col-span-2 sm:col-span-1">
                 <p className="text-xs text-primary-foreground/60 flex items-center gap-1">
-                  <Users className="w-3 h-3" />
-                  Comissão Total (8%)
+                  <Users className="w-3 h-3" />Comissão Total (8%)
                 </p>
                 <p className="text-lg font-semibold">{formatCurrency(totalComissao)}</p>
               </div>
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <Calendar className="w-3 h-3" />
-                  {formatDateBR(fechamento.data)}
-                </div>
             </div>
           </div>
 
-          {/* Action Button */}
           <div className="flex flex-wrap gap-3">
             <WhatsAppButton data={dashboardData} date={formatDateBR(fechamento.data)} />
           </div>
 
           {/* Restaurant Cards */}
-          <div className="grid md:grid-cols-2 gap-6">
-            <SummaryCard
-              restaurante="TRATTORIA"
-              totalValor={dashboardData.trattoria.totalValor}
-              totalAcrescimo={dashboardData.trattoria.totalAcrescimo}
-              totalGeral={dashboardData.trattoria.totalGeral}
-              comissaoGarcom={dashboardData.trattoria.comissaoGarcom}
-            />
-            <SummaryCard
-              restaurante="JAPA"
-              totalValor={dashboardData.japa.totalValor}
-              totalAcrescimo={dashboardData.japa.totalAcrescimo}
-              totalGeral={dashboardData.japa.totalGeral}
-              comissaoGarcom={dashboardData.japa.comissaoGarcom}
-            />
+          <div className={`grid gap-6 ${dashboardData.hasHippocampus ? 'md:grid-cols-3' : 'md:grid-cols-2'}`}>
+            <SummaryCard restaurante="TRATTORIA" totalValor={dashboardData.trattoria.totalValor} totalAcrescimo={dashboardData.trattoria.totalAcrescimo} totalGeral={dashboardData.trattoria.totalGeral} comissaoGarcom={dashboardData.trattoria.comissaoGarcom} />
+            <SummaryCard restaurante="JAPA" totalValor={dashboardData.japa.totalValor} totalAcrescimo={dashboardData.japa.totalAcrescimo} totalGeral={dashboardData.japa.totalGeral} comissaoGarcom={dashboardData.japa.comissaoGarcom} />
+            {dashboardData.hasHippocampus && (
+              <SummaryCard restaurante="HIPPOCAMPUS" totalValor={dashboardData.hippocampus.totalValor} totalAcrescimo={dashboardData.hippocampus.totalAcrescimo} totalGeral={dashboardData.hippocampus.totalGeral} comissaoGarcom={dashboardData.hippocampus.comissaoGarcom} />
+            )}
           </div>
 
-          {/* Payment Details Table */}
-          <PaymentTable trattoria={dashboardData.trattoria} japa={dashboardData.japa} />
+          <PaymentTable trattoria={dashboardData.trattoria} japa={dashboardData.japa} hippocampus={dashboardData.hasHippocampus ? dashboardData.hippocampus : undefined} />
         </div>
       </main>
     </div>
