@@ -206,33 +206,35 @@ export default function ContasPagar() {
             </CardHeader>
             <CardContent>
               {loading ? <div className="flex justify-center py-12"><Loader2 className="animate-spin" /></div> : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Doc</TableHead>
-                      <TableHead>Fornecedor</TableHead>
-                      <TableHead>Empresa</TableHead>
-                      <TableHead className="text-right">Total</TableHead>
-                      <TableHead className="text-center">Ações</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {contas.filter(c => !filterFornecedor || (c.fornecedores?.nome || '').toLowerCase().includes(filterFornecedor.toLowerCase())).map(conta => (
-                      <TableRow key={conta.id}>
-                        <TableCell className="font-mono text-xs">{conta.numero_documento || '-'}</TableCell>
-                        <TableCell>{conta.fornecedores?.nome}</TableCell>
-                        <TableCell className="max-w-[120px] truncate">{conta.empresas?.nome}</TableCell>
-                        <TableCell className="text-right font-semibold">{formatCurrency(conta.valor_total)}</TableCell>
-                        <TableCell className="text-center">
-                          <div className="flex justify-center gap-1">
-                            <Button variant="ghost" size="sm" onClick={() => viewParcelas(conta.id)}><Eye className="w-4 h-4" /></Button>
-                            {canDelete && <Button variant="ghost" size="sm" onClick={() => deleteConta(conta.id)}><Trash2 className="w-4 h-4 text-red-500" /></Button>}
-                          </div>
-                        </TableCell>
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Doc</TableHead>
+                        <TableHead>Fornecedor</TableHead>
+                        <TableHead>Empresa</TableHead>
+                        <TableHead className="text-right">Total</TableHead>
+                        <TableHead className="text-center">Ações</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {contas.filter(c => !filterFornecedor || (c.fornecedores?.nome || '').toLowerCase().includes(filterFornecedor.toLowerCase())).map(conta => (
+                        <TableRow key={conta.id}>
+                          <TableCell className="font-mono text-xs">{conta.numero_documento || '-'}</TableCell>
+                          <TableCell>{conta.fornecedores?.nome}</TableCell>
+                          <TableCell className="max-w-[120px] truncate">{conta.empresas?.nome}</TableCell>
+                          <TableCell className="text-right font-semibold">{formatCurrency(conta.valor_total)}</TableCell>
+                          <TableCell className="text-center">
+                            <div className="flex justify-center gap-1">
+                              <Button variant="ghost" size="sm" onClick={() => viewParcelas(conta.id)}><Eye className="w-4 h-4" /></Button>
+                              {canDelete && <Button variant="ghost" size="sm" onClick={() => deleteConta(conta.id)}><Trash2 className="w-4 h-4 text-red-500" /></Button>}
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
               )}
             </CardContent>
           </Card>
@@ -252,55 +254,64 @@ export default function ContasPagar() {
       <Dialog open={parcelasDialog} onOpenChange={setParcelasDialog}>
         <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Detalhamento de Pagamentos</DialogTitle></DialogHeader>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-[50px]">#</TableHead>
-                <TableHead>Vencimento</TableHead>
-                <TableHead className="text-right">Valor</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Data Pagto</TableHead>
-                {canEdit && <TableHead className="text-center w-[300px]">Baixa de Pagamento</TableHead>}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {selectedContaParcelas.map(p => (
-                <TableRow key={p.id}>
-                  <TableCell>{p.numero_parcela}</TableCell>
-                  <TableCell>{format(new Date(p.data_vencimento + 'T12:00:00'), 'dd/MM/yyyy')}</TableCell>
-                  <TableCell className="text-right font-medium">{formatCurrency(p.valor_original)}</TableCell>
-                  <TableCell>{statusBadge(p.status)}</TableCell>
-                  <TableCell>{p.data_pagamento ? format(new Date(p.data_pagamento + 'T12:00:00'), 'dd/MM/yyyy') : '-'}</TableCell>
-                  {canEdit && (
-                    <TableCell>
-                      <div className="flex items-center justify-center gap-2">
-                        {p.status !== 'pago' ? (
-                          <>
-                            <Input 
-                              type="date" 
-                              className="w-[150px] h-9" 
-                              defaultValue={format(new Date(), 'yyyy-MM-dd')}
-                              onChange={(e) => setPaymentDate(e.target.value)}
-                            />
-                            <Button 
-                              variant="default" 
-                              size="sm" 
-                              className="h-9 bg-green-600 hover:bg-green-700"
-                              onClick={() => updateParcelaStatus(p.id, 'pago', p.valor_original)}
-                            >
-                              Pagar
-                            </Button>
-                          </>
-                        ) : (
-                          <Button variant="outline" size="sm" onClick={() => updateParcelaStatus(p.id, 'pendente')}>Estornar</Button>
-                        )}
-                      </div>
-                    </TableCell>
-                  )}
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-[50px]">#</TableHead>
+                  <TableHead>Vencimento</TableHead>
+                  <TableHead className="text-right">Valor</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Data Pagto</TableHead>
+                  {canEdit && <TableHead className="text-center w-[300px]">Baixa de Pagamento</TableHead>}
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {selectedContaParcelas.map(p => (
+                  <TableRow key={p.id}>
+                    <TableCell>{p.numero_parcela}</TableCell>
+                    <TableCell>{format(new Date(p.data_vencimento + 'T12:00:00'), 'dd/MM/yyyy')}</TableCell>
+                    <TableCell className="text-right font-medium">{formatCurrency(p.valor_original)}</TableCell>
+                    <TableCell>{statusBadge(p.status)}</TableCell>
+                    <TableCell>{p.data_pagamento ? format(new Date(p.data_pagamento + 'T12:00:00'), 'dd/MM/yyyy') : '-'}</TableCell>
+                    {canEdit && (
+                      <TableCell>
+                        <div className="flex items-center justify-center gap-2">
+                          {p.status !== 'pago' ? (
+                            <div className="flex items-center gap-2">
+                              <Input 
+                                type="date" 
+                                className="w-[140px] h-9" 
+                                defaultValue={format(new Date(), 'yyyy-MM-dd')}
+                                onChange={(e) => setPaymentDate(e.target.value)}
+                              />
+                              <Button 
+                                variant="default" 
+                                size="sm" 
+                                className="h-9 bg-green-600 hover:bg-green-700 whitespace-nowrap"
+                                onClick={() => updateParcelaStatus(p.id, 'pago', p.valor_original)}
+                              >
+                                Pagar
+                              </Button>
+                            </div>
+                          ) : (
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              className="h-9 w-full max-w-[100px]" 
+                              onClick={() => updateParcelaStatus(p.id, 'pendente')}
+                            >
+                              Estornar
+                            </Button>
+                          )}
+                        </div>
+                      </TableCell>
+                    )}
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
         </DialogContent>
       </Dialog>
 
