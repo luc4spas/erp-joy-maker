@@ -64,10 +64,8 @@ export function AppLayout({ children, title, subtitle }: AppLayoutProps) {
     navigate('/auth');
   };
 
-  const visibleNavItems = navItems.filter(item => {
+  const visibleNavItems = isLoading ? [] : navItems.filter(item => {
     if (!item.module) return true;
-    // If user has no groups yet, show everything
-    if (permissions.length === 0 && !isAdmin) return true;
     return hasPermission(item.module, 'read');
   });
 
