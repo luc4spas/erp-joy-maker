@@ -167,12 +167,8 @@ export default function ContasPagar() {
   const deleteConta = async (id: string) => {
     if (!confirm('Excluir esta conta e todas as parcelas?')) return;
     const { error } = await supabase.from('contas_pagar').delete().eq('id', id);
-    if (error) {
-      toast({ title: 'Erro ao excluir', description: 'Verifique as permissões no banco.', variant: 'destructive' });
-    } else {
-      toast({ title: 'Conta excluída!' });
-      fetchContas();
-    }
+    if (error) toast({ title: 'Erro ao excluir', variant: 'destructive' });
+    else { toast({ title: 'Conta excluída!' }); fetchContas(); }
   };
 
   const statusBadge = (status: string) => {
@@ -264,7 +260,7 @@ export default function ContasPagar() {
                 <TableHead className="text-right">Valor</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Data Pagto</TableHead>
-                {canEdit && <TableHead className="text-right w-[280px]">Baixa de Pagamento</TableHead>}
+                {canEdit && <TableHead className="text-center w-[300px]">Baixa de Pagamento</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -276,30 +272,29 @@ export default function ContasPagar() {
                   <TableCell>{statusBadge(p.status)}</TableCell>
                   <TableCell>{p.data_pagamento ? format(new Date(p.data_pagamento + 'T12:00:00'), 'dd/MM/yyyy') : '-'}</TableCell>
                   {canEdit && (
-                    <TableCell className="text-right">
-                      {p.status !== 'pago' ? (
-                        <div className="flex items-center justify-end gap-2">
-                          <div className="flex flex-col items-start gap-1">
-                            <span className="text-[10px] text-muted-foreground uppercase font-bold px-1">Data Pagto</span>
+                    <TableCell>
+                      <div className="flex items-center justify-center gap-2">
+                        {p.status !== 'pago' ? (
+                          <>
                             <Input 
                               type="date" 
-                              className="w-[140px] h-9 text-sm" 
+                              className="w-[150px] h-9" 
                               defaultValue={format(new Date(), 'yyyy-MM-dd')}
                               onChange={(e) => setPaymentDate(e.target.value)}
                             />
-                          </div>
-                          <Button 
-                            variant="default" 
-                            size="sm" 
-                            className="h-9 bg-green-600 hover:bg-green-700 mt-5"
-                            onClick={() => updateParcelaStatus(p.id, 'pago', p.valor_original)}
-                          >
-                            Pagar
-                          </Button>
-                        </div>
-                      ) : (
-                        <Button variant="outline" size="sm" onClick={() => updateParcelaStatus(p.id, 'pendente')}>Estornar</Button>
-                      )}
+                            <Button 
+                              variant="default" 
+                              size="sm" 
+                              className="h-9 bg-green-600 hover:bg-green-700"
+                              onClick={() => updateParcelaStatus(p.id, 'pago', p.valor_original)}
+                            >
+                              Pagar
+                            </Button>
+                          </>
+                        ) : (
+                          <Button variant="outline" size="sm" onClick={() => updateParcelaStatus(p.id, 'pendente')}>Estornar</Button>
+                        )}
+                      </div>
                     </TableCell>
                   )}
                 </TableRow>
