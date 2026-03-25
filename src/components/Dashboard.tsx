@@ -1,21 +1,49 @@
+import { useState, useEffect } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
 import { DashboardData, formatCurrency } from '@/lib/processData';
 import { formatDateBR, formatDateLongBR } from '@/lib/dateUtils';
 import { SummaryCard } from './SummaryCard';
 import { PaymentTable } from './PaymentTable';
 import { WhatsAppButton } from './WhatsAppButton';
 import { SaveHistoryButton } from './SaveHistoryButton';
-import { ArrowRight, TrendingUp, Users, Calendar } from 'lucide-react';
+import { CashReconciliation } from './CashReconciliation';
+import { Badge } from '@/components/ui/badge';
+import { ArrowRight, TrendingUp, Users, Calendar, AlertTriangle } from 'lucide-react';
 
 interface DashboardProps {
   data: DashboardData;
   onReset: () => void;
 }
 
+interface Despesa {
+  id: string;
+  descricao: string;
+  valor: number;
+  categoria: string;
+}
+
 export function Dashboard({ data, onReset }: DashboardProps) {
-  const totalGeral = data.trattoria.totalGeral + data.japa.totalGeral;
-  const totalItens = data.trattoria.totalValor + data.japa.totalValor;
-  const totalTaxa = data.trattoria.totalAcrescimo + data.japa.totalAcrescimo;
-  const totalComissao = data.trattoria.comissaoGarcom + data.japa.comissaoGarcom;
+  const { user } = useAuth();
+  const [despesas, setDespesas] = useState<Despesa[]>([]);
+
+  const totalGeral = data.trattoria.totalGeral + data.japa.totalGeral + data.hippocampus.totalGeral;
+  const totalItens = data.trattoria.totalValor + data.japa.totalValor + data.hippocampus.totalValor;
+  const totalTaxa = data.trattoria.totalAcrescimo + data.japa.totalAcrescimo + data.hippocampus.totalAcrescimo;
+  const totalComissao = data.trattoria.comissaoGarcom + data.japa.comissaoGarcom + data.hippocampus.comissaoGarcom;
+
+  // Fetch despesas for the report date
+  useEffect(() => {
+    if (user && data.dataRelatorio) {
+      supabase
+        .from('despesas')
+        .select('id, descricao, valor, categoria')
+        .eq('data', data.dataRelatorio)
+        .then(({ data: d }) => {
+          if (d) setDespesas(d as Despesa[]);
+        });
+    }
+  }, [user, data.dataRelatorio]);
 
   return (
     <div className="space-y-8 animate-fade-in">
@@ -33,6 +61,19 @@ export function Dashboard({ data, onReset }: DashboardProps) {
           <ArrowRight className="w-4 h-4" />
         </button>
       </div>
+
+      {/* Hippocampus Alert */}
+      {data.hasHippocampus && (
+        <div className="flex items-center gap-3 p-4 rounded-xl bg-hippocampus-light border-2" style={{ borderColor: 'hsl(var(--hippocampus))' }}>
+          <AlertTriangle className="w-5 h-5 text-hippocampus shrink-0" />
+          <div className="flex items-center gap-2 flex-wrap">
+            <Badge className="bg-hippocampus text-white border-0">🐴 Hippocampus Detectado</Badge>
+            <span className="text-sm text-hippocampus-foreground font-medium">
+              Vendas de domingo entre 11:30 e 18:00 foram atribuídas à unidade Hippocampus.
+            </span>
+          </div>
+        </div>
+      )}
 
       {/* Report Date Card */}
       <div className="bg-card rounded-xl p-4 shadow-card border border-border flex items-center gap-3">
@@ -86,7 +127,7 @@ export function Dashboard({ data, onReset }: DashboardProps) {
       </div>
 
       {/* Restaurant Cards */}
-      <div className="grid md:grid-cols-2 gap-6">
+      <div className={`grid gap-6 ${data.hasHippocampus ? 'md:grid-cols-3' : 'md:grid-cols-2'}`}>
         <SummaryCard
           restaurante="TRATTORIA"
           totalValor={data.trattoria.totalValor}
@@ -101,10 +142,29 @@ export function Dashboard({ data, onReset }: DashboardProps) {
           totalGeral={data.japa.totalGeral}
           comissaoGarcom={data.japa.comissaoGarcom}
         />
+        {data.hasHippocampus && (
+          <SummaryCard
+            restaurante="HIPPOCAMPUS"
+            totalValor={data.hippocampus.totalValor}
+            totalAcrescimo={data.hippocampus.totalAcrescimo}
+            totalGeral={data.hippocampus.totalGeral}
+            comissaoGarcom={data.hippocampus.comissaoGarcom}
+          />
+        )}
       </div>
 
       {/* Payment Details Table */}
-      <PaymentTable trattoria={data.trattoria} japa={data.japa} />
+      <PaymentTable
+        trattoria={data.trattoria}
+        japa={data.japa}
+        hippocampus={data.hasHippocampus ? data.hippocampus : undefined}
+      />
+
+      {/* Cash Reconciliation */}
+      <CashReconciliation
+        totalDinheiro={data.totalDinheiro}
+        despesas={despesas}
+      />
     </div>
   );
 }
