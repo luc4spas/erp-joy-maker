@@ -18,7 +18,8 @@ import {
   Building2,
   Truck,
   Shield,
-  ChevronDown
+  ChevronDown,
+  UserCog
 } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
