@@ -18,6 +18,7 @@ import ContasPagar from "./pages/ContasPagar";
 import Empresas from "./pages/Empresas";
 import Fornecedores from "./pages/Fornecedores";
 import GruposAcesso from "./pages/GruposAcesso";
+import Usuarios from "./pages/Usuarios";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
