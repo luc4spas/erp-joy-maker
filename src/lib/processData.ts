@@ -105,15 +105,9 @@ function parseExcelTime(value: any): { hours: number; minutes: number } | null {
   return null;
 }
 
-function getDayOfWeek(dateStr: string): number {
-  // Returns 0=Sunday, 1=Monday, ...
-  const date = new Date(dateStr + 'T12:00:00');
-  return date.getDay();
-}
-
 function isHippocampusTime(time: { hours: number; minutes: number }): boolean {
   const totalMinutes = time.hours * 60 + time.minutes;
-  const start = 11 * 60 + 30; // 11:30
+  const start = 11 * 60; // 11:00
   const end = 18 * 60; // 18:00
   return totalMinutes >= start && totalMinutes <= end;
 }
@@ -168,8 +162,8 @@ export function processData(rawData: any[]): DashboardData {
     }
   }
 
-  // Check if report date is a Sunday
-  const isSunday = dataRelatorio ? getDayOfWeek(dataRelatorio) === 0 : false;
+
+
 
   let lastTipovenda = '';
   const filledData = rawData.map((row: any) => {
@@ -191,8 +185,8 @@ export function processData(rawData: any[]): DashboardData {
       const tableNumber = extractTableNumber(row.tipovenda);
       let restaurante: 'TRATTORIA' | 'JAPA' | 'HIPPOCAMPUS' = tableNumber ? classifyRestaurant(tableNumber) : 'TRATTORIA';
 
-      // Hippocampus rule: Sunday between 11:30 and 18:00
-      if (isSunday && row.time && isHippocampusTime(row.time)) {
+      // Hippocampus rule: any day between 11:00 and 18:00
+      if (row.time && isHippocampusTime(row.time)) {
         restaurante = 'HIPPOCAMPUS';
       }
 
