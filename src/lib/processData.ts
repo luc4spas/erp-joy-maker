@@ -185,8 +185,8 @@ export function processData(rawData: any[]): DashboardData {
       const tableNumber = extractTableNumber(row.tipovenda);
       let restaurante: 'TRATTORIA' | 'JAPA' | 'HIPPOCAMPUS' = tableNumber ? classifyRestaurant(tableNumber) : 'TRATTORIA';
 
-      // Hippocampus rule: Sunday between 11:30 and 18:00
-      if (isSunday && row.time && isHippocampusTime(row.time)) {
+      // Hippocampus rule: any day between 11:00 and 18:00
+      if (row.time && isHippocampusTime(row.time)) {
         restaurante = 'HIPPOCAMPUS';
       }
 
