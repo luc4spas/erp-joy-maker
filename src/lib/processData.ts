@@ -162,8 +162,8 @@ export function processData(rawData: any[]): DashboardData {
     }
   }
 
-  // Check if report date is a Sunday
-  const isSunday = dataRelatorio ? getDayOfWeek(dataRelatorio) === 0 : false;
+
+
 
   let lastTipovenda = '';
   const filledData = rawData.map((row: any) => {
