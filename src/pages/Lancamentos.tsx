@@ -163,10 +163,12 @@ const Lancamentos = () => {
               <ChevronLeft className="w-4 h-4" />
             </Button>
             <div className="flex items-center gap-3">
-              <Calendar className="w-5 h-5 text-primary" />
+              <div className="w-10 h-10 rounded-lg bg-secondary flex items-center justify-center">
+                <Calendar className="w-5 h-5 text-primary" />
+              </div>
               <div>
                 <p className="text-xs text-muted-foreground">Mês de Referência</p>
-                <p className="text-lg font-semibold capitalize">{mesAnoLabel}</p>
+                <p className="text-lg font-semibold text-foreground capitalize">{mesAnoLabel}</p>
               </div>
             </div>
             <Button variant="outline" size="icon" onClick={() => setMonthStart(startOfMonth(addMonths(monthStart, 1)))}>
@@ -174,59 +176,62 @@ const Lancamentos = () => {
             </Button>
           </div>
 
-          {canWrite && (
-            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-              <DialogTrigger asChild>
-                <Button className="gap-2"><Plus className="w-4 h-4" /> Novo Lançamento</Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader><DialogTitle>Novo Lançamento</DialogTitle></DialogHeader>
-                <form onSubmit={handleSubmit} className="space-y-4 pt-4">
-                  <div className="space-y-2">
-                    <Label>Colaborador</Label>
-                    <Select value={employeeId} onValueChange={setEmployeeId}>
-                      <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
-                      <SelectContent>
-                        {funcionarios.map(f => <SelectItem key={f.id} value={f.id}>{f.nome}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Tipo</Label>
-                    <Select value={type} onValueChange={(v: any) => setType(v)}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="vale">Vale</SelectItem>
-                        <SelectItem value="bonus">Bônus</SelectItem>
-                        <SelectItem value="desconto">Desconto</SelectItem>
-                        <SelectItem value="adicional_noturno">Adicional Noturno</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  
-                  {type === 'adicional_noturno' ? (
+          <div className="flex gap-2 flex-wrap">
+            <Button variant="secondary" onClick={() => setMonthStart(startOfMonth(new Date()))}>Mês Atual</Button>
+            {canWrite && (
+              <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button className="gap-2"><Plus className="w-4 h-4" /> Novo Lançamento</Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader><DialogTitle>Novo Lançamento</DialogTitle></DialogHeader>
+                  <form onSubmit={handleSubmit} className="space-y-4 pt-4">
                     <div className="space-y-2">
-                      <Label>Quantidade de Horas</Label>
-                      <Input type="number" step="0.01" value={hours} onChange={e => setHours(e.target.value)} placeholder="Ex: 50.81" />
+                      <Label>Colaborador</Label>
+                      <Select value={employeeId} onValueChange={setEmployeeId}>
+                        <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
+                        <SelectContent>
+                          {funcionarios.map(f => <SelectItem key={f.id} value={f.id}>{f.nome}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
                     </div>
-                  ) : (
                     <div className="space-y-2">
-                      <Label>Valor (R$)</Label>
-                      <Input type="number" step="0.01" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0,00" />
+                      <Label>Tipo</Label>
+                      <Select value={type} onValueChange={(v: any) => setType(v)}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="vale">Vale</SelectItem>
+                          <SelectItem value="bonus">Bônus</SelectItem>
+                          <SelectItem value="desconto">Desconto</SelectItem>
+                          <SelectItem value="adicional_noturno">Adicional Noturno</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
-                  )}
 
-                  <div className="space-y-2">
-                    <Label>Observação (Opcional)</Label>
-                    <Input value={description} onChange={e => setDescription(e.target.value)} placeholder="Ex: Adiantamento dia 15" />
-                  </div>
-                  <Button type="submit" className="w-full" disabled={isSubmitting}>
-                    {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Salvar Lançamento'}
-                  </Button>
-                </form>
-              </DialogContent>
-            </Dialog>
-          )}
+                    {type === 'adicional_noturno' ? (
+                      <div className="space-y-2">
+                        <Label>Quantidade de Horas</Label>
+                        <Input type="number" step="0.01" value={hours} onChange={e => setHours(e.target.value)} placeholder="Ex: 50.81" />
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        <Label>Valor (R$)</Label>
+                        <Input type="number" step="0.01" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0,00" />
+                      </div>
+                    )}
+
+                    <div className="space-y-2">
+                      <Label>Observação (Opcional)</Label>
+                      <Input value={description} onChange={e => setDescription(e.target.value)} placeholder="Ex: Adiantamento dia 15" />
+                    </div>
+                    <Button type="submit" className="w-full" disabled={isSubmitting}>
+                      {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Salvar Lançamento'}
+                    </Button>
+                  </form>
+                </DialogContent>
+              </Dialog>
+            )}
+          </div>
         </div>
 
         {isLoading ? (
