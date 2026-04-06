@@ -11,7 +11,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Loader2, Plus, Trash2, ChevronLeft, ChevronRight, Calendar, Upload, Check, AlertCircle } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { format, startOfMonth, addMonths, subMonths } from 'date-fns';
@@ -46,6 +46,20 @@ interface ImportPreview {
   horas: number;
   status: 'sucesso' | 'erro';
 }
+
+const typeLabels: Record<string, string> = { 
+  vale: 'Vale', 
+  bonus: 'Bônus', 
+  desconto: 'Desconto',
+  adicional_noturno: 'Adic. Noturno'
+};
+
+const typeColors: Record<string, string> = {
+  vale: 'bg-destructive/10 text-destructive',
+  bonus: 'bg-success/20 text-success',
+  desconto: 'bg-muted text-muted-foreground',
+  adicional_noturno: 'bg-blue-500/10 text-blue-600',
+};
 
 const Lancamentos = () => {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -99,6 +113,7 @@ const Lancamentos = () => {
         const data = new Uint8Array(e.target?.result as ArrayBuffer);
         const workbook = XLSX.read(data, { type: 'array' });
         const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+        // Forçamos o tipo para any[][] para evitar o erro de "unknown"
         const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[][];
 
         const normalize = (txt: string) => 
@@ -107,6 +122,8 @@ const Lancamentos = () => {
         const previewData: ImportPreview[] = [];
 
         for (const row of jsonData.slice(1)) {
+          if (!row || row.length === 0) continue;
+          
           const nomeBruto = row[0]?.toString() || "";
           const nomePlanilhaNorm = normalize(nomeBruto);
           const valorNoturnoRaw = row[11];
@@ -234,7 +251,6 @@ const Lancamentos = () => {
                   <input type="file" className="absolute inset-0 opacity-0 cursor-pointer" accept=".xlsx, .xls" onChange={handleFileSelect} />
                 </Button>
                 
-                {/* Modal de Conferência */}
                 <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
                   <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col">
                     <DialogHeader>
@@ -284,7 +300,6 @@ const Lancamentos = () => {
                   </DialogContent>
                 </Dialog>
 
-                {/* Modal de Lançamento Manual */}
                 <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
                   <DialogTrigger asChild>
                     <Button className="gap-2"><Plus className="w-4 h-4" /> Novo</Button>
@@ -328,7 +343,6 @@ const Lancamentos = () => {
           </div>
         </div>
 
-        {/* Cards de Totais */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div className="bg-card rounded-xl p-4 border border-border shadow-sm">
             <p className="text-xs text-muted-foreground">Vales</p>
@@ -344,7 +358,6 @@ const Lancamentos = () => {
           </div>
         </div>
 
-        {/* Tabela de Lançamentos */}
         {isLoading ? (
           <div className="flex justify-center py-12"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
         ) : (
