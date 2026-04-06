@@ -6,7 +6,7 @@ import { formatDateBR } from '@/lib/dateUtils';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, ChevronLeft, ChevronRight, Calendar, Printer, DollarSign, Users } from 'lucide-react';
+import { Loader2, ChevronLeft, ChevronRight, Calendar, Printer, DollarSign } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, addMonths, subMonths } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -50,23 +50,32 @@ export function RateioMensal() {
     if (user) fetchMonthlyData();
   }, [user, monthStart]);
 
+  /**
+   * Gera as semanas do mês garantindo que fiquem estritamente dentro 
+   * do intervalo do dia 01 ao último dia do mês (Clamping).
+   */
   const getWeeksInMonth = (start: Date, end: Date) => {
     const weeks: { inicio: Date; fim: Date }[] = [];
     let current = new Date(start);
-    
-    // Find the first Sunday on or before the month start
-    const dayOfWeek = current.getDay();
-    if (dayOfWeek !== 0) {
-      current = new Date(current);
-      current.setDate(current.getDate() - dayOfWeek);
-    }
 
     while (current <= end) {
       const weekStart = new Date(current);
-      const weekEnd = new Date(current);
-      weekEnd.setDate(weekEnd.getDate() + 6);
+      let weekEnd = new Date(current);
+      
+      // Busca o próximo sábado (fim da semana padrão)
+      const daysUntilSaturday = 6 - current.getDay();
+      weekEnd.setDate(current.getDate() + daysUntilSaturday);
+
+      // Se o sábado passar do fim do mês, trava no último dia do mês
+      if (weekEnd > end) {
+        weekEnd = new Date(end);
+      }
+
       weeks.push({ inicio: weekStart, fim: weekEnd });
-      current.setDate(current.getDate() + 7);
+
+      // O próximo início será o domingo seguinte
+      current = new Date(weekEnd);
+      current.setDate(current.getDate() + 1);
     }
 
     return weeks;
@@ -78,21 +87,17 @@ export function RateioMensal() {
     const weeks = getWeeksInMonth(monthStart, monthEnd);
     setSemanasDoMes(weeks);
 
-    // Fetch wider range to cover partial weeks
-    const fetchStart = format(weeks[0]?.inicio || monthStart, 'yyyy-MM-dd');
-    const fetchEnd = format(weeks[weeks.length - 1]?.fim || monthEnd, 'yyyy-MM-dd');
+    // Busca dados estritamente dentro do mês selecionado
+    const fetchStart = format(monthStart, 'yyyy-MM-dd');
+    const fetchEnd = format(monthEnd, 'yyyy-MM-dd');
 
-    const [funcRes, fechRes, pagRes] = await Promise.all([
+    const [funcRes, fechRes] = await Promise.all([
       supabase.from('funcionarios').select('*').eq('ativo', true),
       supabase.from('fechamentos')
         .select('id, data, comissao_japa, comissao_trattoria, japa_taxa, trattoria_taxa')
         .gte('data', fetchStart)
         .lte('data', fetchEnd)
-        .order('data', { ascending: true }),
-      supabase.from('pagamentos_funcionarios')
-        .select('id, funcionario_id, pago, valor, data')
-        .gte('data', fetchStart)
-        .lte('data', fetchEnd)
+        .order('data', { ascending: true })
     ]);
 
     const funcs = (funcRes.data || []) as Funcionario[];
@@ -106,7 +111,6 @@ export function RateioMensal() {
       return;
     }
 
-    // Calculate rateio per week, then aggregate per month
     const funcMap = new Map<string, RateioMensalItem>();
 
     funcs.forEach(f => {
@@ -133,6 +137,7 @@ export function RateioMensal() {
       const totalComissaoJapa = weekFechs.reduce((sum, f) => sum + Number(f.comissao_japa), 0);
       const totalComissaoTrattoria = weekFechs.reduce((sum, f) => sum + Number(f.comissao_trattoria), 0);
       const totalComissao = totalComissaoJapa + totalComissaoTrattoria;
+      
       if (totalComissao === 0) return;
 
       const japaGarcom = totalComissaoJapa * percentGarcom;
@@ -147,20 +152,22 @@ export function RateioMensal() {
       const cozinhaTrattoriaFuncs = funcs.filter(f => f.setor === 'Cozinha' && (f.frente === 'Trattoria' || f.frente === 'Ambas'));
       const adminFuncs = funcs.filter(f => f.setor === 'Administrativo');
 
-      // Temp map for this week
       const weekValues = new Map<string, { japa: number; trattoria: number }>();
       funcs.forEach(f => weekValues.set(f.id, { japa: 0, trattoria: 0 }));
 
       const addVal = (id: string, japa: number, trattoria: number) => {
-        const v = weekValues.get(id)!;
-        v.japa += japa;
-        v.trattoria += trattoria;
+        const v = weekValues.get(id);
+        if (v) {
+          v.japa += japa;
+          v.trattoria += trattoria;
+        }
       };
 
       garcomJapaFuncs.forEach(f => addVal(f.id, japaGarcom / garcomJapaFuncs.length, 0));
       garcomTrattoriaFuncs.forEach(f => addVal(f.id, 0, trattoriaGarcom / garcomTrattoriaFuncs.length));
       cozinhaJapaFuncs.forEach(f => addVal(f.id, japaCozinha / cozinhaJapaFuncs.length, 0));
       cozinhaTrattoriaFuncs.forEach(f => addVal(f.id, 0, trattoriaCozinha / cozinhaTrattoriaFuncs.length));
+      
       adminFuncs.forEach(f => {
         const val = adminTotal / adminFuncs.length;
         const propJapa = totalComissaoJapa / totalComissao;
@@ -192,7 +199,6 @@ export function RateioMensal() {
 
   const handlePrintMonthly = () => {
     const mesAno = format(monthStart, "MMMM 'de' yyyy", { locale: ptBR });
-    
     const w = window.open('', '_blank');
     if (!w) return;
 
@@ -235,7 +241,7 @@ export function RateioMensal() {
             ${rateioMensal.map(r => `
               <tr>
                 <td class="font-bold">${r.funcionario.nome}</td>
-                <td>${r.funcionario.setor === 'Administrativo' ? 'Caixa/Adm/Cumins' : `${r.funcionario.setor} ${r.funcionario.frente}`}</td>
+                <td>${r.funcionario.setor === 'Administrativo' ? 'Caixa/Adm' : `${r.funcionario.setor} ${r.funcionario.frente}`}</td>
                 <td class="semanas">${r.semanas.length} semana(s)</td>
                 <td class="text-right">${r.valorJapa > 0 ? formatCurrency(r.valorJapa) : '-'}</td>
                 <td class="text-right">${r.valorTrattoria > 0 ? formatCurrency(r.valorTrattoria) : '-'}</td>
@@ -263,7 +269,7 @@ export function RateioMensal() {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      {/* Month Selector */}
+      {/* Seletor de Mês */}
       <div className="bg-card rounded-xl p-4 shadow-card border border-border flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <Button variant="outline" size="icon" onClick={goToPreviousMonth}>
@@ -294,7 +300,7 @@ export function RateioMensal() {
         </div>
       </div>
 
-      {/* Summary Card */}
+      {/* Cards de Resumo */}
       {rateioMensal.length > 0 && (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div className="bg-card rounded-xl p-4 shadow-card border border-border">
@@ -312,7 +318,7 @@ export function RateioMensal() {
         </div>
       )}
 
-      {/* Table */}
+      {/* Tabela de Dados */}
       {isLoading ? (
         <div className="flex justify-center py-12">
           <Loader2 className="w-8 h-8 animate-spin text-primary" />
@@ -320,16 +326,15 @@ export function RateioMensal() {
       ) : rateioMensal.length === 0 ? (
         <div className="text-center py-16 bg-card rounded-2xl shadow-card">
           <DollarSign className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
-          <p className="text-muted-foreground">Nenhum fechamento encontrado para este mês.</p>
+          <p className="text-muted-foreground">Nenhum fechamento encontrado para este período.</p>
         </div>
       ) : (
         <div className="bg-card rounded-2xl shadow-card overflow-hidden">
           <div className="p-4 border-b border-border">
             <h3 className="font-semibold text-lg">Consolidado Mensal por Colaborador</h3>
-            <p className="text-sm text-muted-foreground">Valores para composição da folha de pagamento</p>
+            <p className="text-sm text-muted-foreground">Valores baseados estritamente nos fechamentos do mês de referência</p>
           </div>
 
-          {/* Desktop */}
           <div className="hidden md:block">
             <Table>
               <TableHeader>
@@ -340,7 +345,7 @@ export function RateioMensal() {
                     <TableHead key={i} className="text-right text-xs">
                       Sem {i + 1}<br />
                       <span className="text-muted-foreground font-normal">
-                        {format(w.inicio, 'dd/MM')}
+                        {format(w.inicio, 'dd/MM')} - {format(w.fim, 'dd/MM')}
                       </span>
                     </TableHead>
                   ))}
@@ -364,7 +369,8 @@ export function RateioMensal() {
                       </Badge>
                     </TableCell>
                     {semanasDoMes.map((w, i) => {
-                      const semana = r.semanas[i];
+                      const periodoLabel = `${format(w.inicio, 'dd/MM')} a ${format(w.fim, 'dd/MM')}`;
+                      const semana = r.semanas.find(s => s.inicio === periodoLabel);
                       return (
                         <TableCell key={i} className="text-right tabular-nums">
                           {semana ? formatCurrency(semana.valor) : <span className="text-muted-foreground">-</span>}
@@ -379,8 +385,9 @@ export function RateioMensal() {
                 <TableRow className="bg-secondary/50 font-bold">
                   <TableCell colSpan={2}>TOTAL GERAL</TableCell>
                   {semanasDoMes.map((w, i) => {
+                    const periodoLabel = `${format(w.inicio, 'dd/MM')} a ${format(w.fim, 'dd/MM')}`;
                     const weekTotal = rateioMensal.reduce((sum, r) => {
-                      const s = r.semanas[i];
+                      const s = r.semanas.find(sm => sm.inicio === periodoLabel);
                       return sum + (s ? s.valor : 0);
                     }, 0);
                     return (
@@ -397,22 +404,15 @@ export function RateioMensal() {
             </Table>
           </div>
 
-          {/* Mobile Cards */}
+          {/* Versão Mobile */}
           <div className="md:hidden divide-y divide-border">
             {rateioMensal.map((r) => (
               <div key={r.funcionario.id} className="p-4 space-y-2">
                 <div className="flex items-start justify-between">
                   <div>
                     <p className="font-semibold text-foreground">{r.funcionario.nome}</p>
-                    <Badge variant="secondary" className={`mt-1 text-xs ${
-                      r.funcionario.setor === 'Administrativo' ? 'bg-commission-light text-commission-foreground' :
-                      r.funcionario.frente === 'Japa' ? 'bg-japa-light text-japa-foreground' :
-                      r.funcionario.frente === 'Trattoria' ? 'bg-trattoria-light text-trattoria-foreground' :
-                      'bg-secondary'
-                    }`}>
-                      {r.funcionario.setor === 'Administrativo' 
-                        ? 'CAIXA/ADM' 
-                        : `${r.funcionario.setor.toUpperCase()} ${r.funcionario.frente.toUpperCase()}`}
+                    <Badge variant="secondary" className="mt-1 text-xs">
+                      {r.funcionario.setor.toUpperCase()}
                     </Badge>
                   </div>
                   <p className="text-xl font-bold text-primary">{formatCurrency(r.totalMes)}</p>
@@ -429,7 +429,6 @@ export function RateioMensal() {
                     </div>
                   )}
                 </div>
-                <p className="text-xs text-muted-foreground">{r.semanas.length} semana(s) com comissão</p>
               </div>
             ))}
           </div>
