@@ -113,7 +113,6 @@ const Lancamentos = () => {
         const data = new Uint8Array(e.target?.result as ArrayBuffer);
         const workbook = XLSX.read(data, { type: 'array' });
         const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-        // Forçamos o tipo para any[][] para evitar o erro de "unknown"
         const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[][];
 
         const normalize = (txt: string) => 
@@ -163,17 +162,19 @@ const Lancamentos = () => {
     const validImports = importPreview.filter(p => p.status === 'sucesso');
 
     try {
-      for (const item of validImports) {
-        await supabase.from('payroll_transactions').insert({
-          user_id: user?.id,
-          employee_id: item.funcionarioId,
-          transaction_type: 'adicional_noturno',
-          hours_quantity: item.horas,
-          amount: 0,
-          reference_month: refMonth,
-          description: 'Importação via Excel'
-        });
-      }
+      const inserts = validImports.map(item => ({
+        user_id: user?.id,
+        employee_id: item.funcionarioId,
+        transaction_type: 'adicional_noturno',
+        hours_quantity: item.horas,
+        amount: 0,
+        reference_month: refMonth,
+        description: 'Importação via Excel'
+      }));
+
+      const { error } = await supabase.from('payroll_transactions').insert(inserts);
+      if (error) throw error;
+
       toast({ title: "Sucesso", description: `${validImports.length} lançamentos salvos!` });
       setPreviewOpen(false);
       fetchData();
@@ -252,51 +253,78 @@ const Lancamentos = () => {
                 </Button>
                 
                 <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
-                  <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col">
-                    <DialogHeader>
+                  <DialogContent className="max-w-2xl h-[90vh] flex flex-col p-0 gap-0 overflow-hidden">
+                    <DialogHeader className="p-6 pb-2">
                       <DialogTitle>Conferir Importação ({mesAnoLabel})</DialogTitle>
                     </DialogHeader>
-                    <ScrollArea className="flex-1 my-4 border rounded-md p-2">
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Nome na Planilha</TableHead>
-                            <TableHead>No Sistema</TableHead>
-                            <TableHead className="text-right">Horas</TableHead>
-                            <TableHead className="w-10"></TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {importPreview.map((item, idx) => (
-                            <TableRow key={idx} className={item.status === 'erro' ? 'bg-destructive/5' : ''}>
-                              <TableCell className="text-sm">{item.nomePlanilha}</TableCell>
-                              <TableCell className="text-sm font-medium">
-                                {item.funcionarioNome || <span className="text-destructive flex items-center gap-1"><AlertCircle className="w-3 h-3" /> Não encontrado</span>}
-                              </TableCell>
-                              <TableCell className="text-right font-mono">{item.horas}h</TableCell>
-                              <TableCell>
-                                {item.status === 'sucesso' ? <Check className="w-4 h-4 text-success" /> : <AlertCircle className="w-4 h-4 text-destructive" />}
-                              </TableCell>
+                    
+                    <div className="flex-1 overflow-hidden px-6">
+                      <ScrollArea className="h-full border rounded-md">
+                        <Table>
+                          <TableHeader className="sticky top-0 bg-background z-10">
+                            <TableRow>
+                              <TableHead>Nome na Planilha</TableHead>
+                              <TableHead>No Sistema</TableHead>
+                              <TableHead className="text-right">Horas</TableHead>
+                              <TableHead className="w-10"></TableHead>
                             </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </ScrollArea>
-                    <div className="bg-muted/30 p-3 rounded-lg text-sm mb-4">
-                      <p><strong>Total lido:</strong> {importPreview.length} registros</p>
-                      <p className="text-success"><strong>Prontos para salvar:</strong> {importPreview.filter(p => p.status === 'sucesso').length}</p>
-                      <p className="text-destructive"><strong>Inconsistentes:</strong> {importPreview.filter(p => p.status === 'erro').length}</p>
+                          </TableHeader>
+                          <TableBody>
+                            {importPreview.map((item, idx) => (
+                              <TableRow key={idx} className={item.status === 'erro' ? 'bg-destructive/5' : ''}>
+                                <TableCell className="text-sm py-2">{item.nomePlanilha}</TableCell>
+                                <TableCell className="text-sm font-medium py-2">
+                                  {item.funcionarioNome || (
+                                    <span className="text-destructive flex items-center gap-1">
+                                      <AlertCircle className="w-3 h-3" /> Não encontrado
+                                    </span>
+                                  )}
+                                </TableCell>
+                                <TableCell className="text-right font-mono py-2">{item.horas}h</TableCell>
+                                <TableCell className="py-2">
+                                  {item.status === 'sucesso' ? (
+                                    <Check className="w-4 h-4 text-success" />
+                                  ) : (
+                                    <AlertCircle className="w-4 h-4 text-destructive" />
+                                  )}
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </ScrollArea>
                     </div>
-                    <DialogFooter>
-                      <Button variant="ghost" onClick={() => setPreviewOpen(false)}>Cancelar</Button>
-                      <Button 
-                        onClick={confirmImport} 
-                        disabled={isSavingImport || importPreview.filter(p => p.status === 'sucesso').length === 0}
-                      >
-                        {isSavingImport ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Check className="w-4 h-4 mr-2" />}
-                        Confirmar e Salvar no Banco
-                      </Button>
-                    </DialogFooter>
+
+                    <div className="p-6 pt-2 space-y-4">
+                      <div className="bg-muted/30 p-3 rounded-lg text-sm">
+                        <div className="flex justify-between">
+                          <span>Total lido:</span>
+                          <span className="font-bold">{importPreview.length}</span>
+                        </div>
+                        <div className="flex justify-between text-success">
+                          <span>Prontos para salvar:</span>
+                          <span className="font-bold">{importPreview.filter(p => p.status === 'sucesso').length}</span>
+                        </div>
+                        <div className="flex justify-between text-destructive">
+                          <span>Inconsistentes:</span>
+                          <span className="font-bold">{importPreview.filter(p => p.status === 'erro').length}</span>
+                        </div>
+                      </div>
+                      
+                      <DialogFooter className="flex gap-2 sm:gap-0">
+                        <Button variant="ghost" onClick={() => setPreviewOpen(false)} className="flex-1 sm:flex-none">
+                          Cancelar
+                        </Button>
+                        <Button 
+                          onClick={confirmImport} 
+                          className="flex-1 sm:flex-none"
+                          disabled={isSavingImport || importPreview.filter(p => p.status === 'sucesso').length === 0}
+                        >
+                          {isSavingImport ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Check className="w-4 h-4 mr-2" />}
+                          Confirmar e Salvar
+                        </Button>
+                      </DialogFooter>
+                    </div>
                   </DialogContent>
                 </Dialog>
 
@@ -334,7 +362,11 @@ const Lancamentos = () => {
                           <Input type="number" step="0.01" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} placeholder="0,00" />
                         </div>
                       </div>
-                      <Button onClick={handleSubmit} className="w-full">Salvar</Button>
+                      <div>
+                        <Label>Descrição (opcional)</Label>
+                        <Input value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Ex: Adiantamento" />
+                      </div>
+                      <Button onClick={handleSubmit} className="w-full">Salvar Lançamento</Button>
                     </div>
                   </DialogContent>
                 </Dialog>
@@ -372,26 +404,34 @@ const Lancamentos = () => {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {transactions.map((tx) => (
-                  <TableRow key={tx.id}>
-                    <TableCell className="font-medium">{tx.funcionario?.nome || 'N/A'}</TableCell>
-                    <TableCell>
-                      <Badge variant="secondary" className={typeColors[tx.transaction_type]}>
-                        {typeLabels[tx.transaction_type]}
-                      </Badge>
+                {transactions.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={canDelete ? 4 : 3} className="text-center py-8 text-muted-foreground italic">
+                      Nenhum lançamento encontrado para este mês.
                     </TableCell>
-                    <TableCell className={`text-right tabular-nums font-semibold ${tx.transaction_type === 'vale' || tx.transaction_type === 'desconto' ? 'text-destructive' : 'text-success'}`}>
-                      {tx.transaction_type === 'adicional_noturno' ? `${tx.hours_quantity}h` : formatCurrency(tx.amount)}
-                    </TableCell>
-                    {canDelete && (
-                      <TableCell>
-                        <Button variant="ghost" size="icon" onClick={() => handleDelete(tx.id)}>
-                          <Trash2 className="w-4 h-4 text-destructive" />
-                        </Button>
-                      </TableCell>
-                    )}
                   </TableRow>
-                ))}
+                ) : (
+                  transactions.map((tx) => (
+                    <TableRow key={tx.id}>
+                      <TableCell className="font-medium">{tx.funcionario?.nome || 'N/A'}</TableCell>
+                      <TableCell>
+                        <Badge variant="secondary" className={typeColors[tx.transaction_type]}>
+                          {typeLabels[tx.transaction_type]}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className={`text-right tabular-nums font-semibold ${tx.transaction_type === 'vale' || tx.transaction_type === 'desconto' ? 'text-destructive' : 'text-success'}`}>
+                        {tx.transaction_type === 'adicional_noturno' ? `${tx.hours_quantity}h` : formatCurrency(tx.amount)}
+                      </TableCell>
+                      {canDelete && (
+                        <TableCell>
+                          <Button variant="ghost" size="icon" onClick={() => handleDelete(tx.id)}>
+                            <Trash2 className="w-4 h-4 text-destructive" />
+                          </Button>
+                        </TableCell>
+                      )}
+                    </TableRow>
+                  ))
+                )}
               </TableBody>
             </Table>
           </div>
