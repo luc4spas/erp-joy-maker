@@ -238,7 +238,7 @@ const Lancamentos = () => {
             <Button variant="outline" size="icon" onClick={() => setMonthStart(subMonths(monthStart, 1))}>
               <ChevronLeft className="w-4 h-4" />
             </Button>
-            <div>
+            <div className="text-center min-w-[140px]">
               <p className="text-xs text-muted-foreground font-medium">Mês de Referência</p>
               <p className="text-lg font-semibold text-foreground capitalize">{mesAnoLabel}</p>
             </div>
@@ -257,35 +257,57 @@ const Lancamentos = () => {
                 </Button>
                 
                 <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
-                  <DialogContent className="max-w-2xl h-[80vh] flex flex-col">
-                    <DialogHeader><DialogTitle>Conferir Importação</DialogTitle></DialogHeader>
-                    <ScrollArea className="flex-1 border rounded-md p-4">
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Planilha</TableHead>
-                            <TableHead>Sistema</TableHead>
-                            <TableHead className="text-right">Horas</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {importPreview.map((item, idx) => (
-                            <TableRow key={idx} className={item.status === 'erro' ? 'bg-destructive/5' : ''}>
-                              <TableCell className="text-xs">{item.nomePlanilha}</TableCell>
-                              <TableCell className="text-xs font-medium">
-                                {item.funcionarioNome || <span className="text-destructive">Não encontrado</span>}
-                              </TableCell>
-                              <TableCell className="text-right font-mono">{item.horas}h</TableCell>
+                  <DialogContent className="max-w-2xl h-[85vh] flex flex-col p-6">
+                    <DialogHeader>
+                      <DialogTitle>Conferir Importação ({mesAnoLabel})</DialogTitle>
+                    </DialogHeader>
+                    
+                    <div className="flex-1 overflow-hidden mt-4">
+                      <ScrollArea className="h-full border rounded-md">
+                        <Table>
+                          <TableHeader className="sticky top-0 bg-background z-10">
+                            <TableRow>
+                              <TableHead>Nome na Planilha</TableHead>
+                              <TableHead>No Sistema</TableHead>
+                              <TableHead className="text-right">Horas</TableHead>
+                              <TableHead className="w-10"></TableHead>
                             </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </ScrollArea>
-                    <DialogFooter className="mt-4">
-                      <Button variant="ghost" onClick={() => setPreviewOpen(false)}>Cancelar</Button>
-                      <Button onClick={confirmImport} disabled={isSavingImport || importPreview.every(p => p.status === 'erro')}>
+                          </TableHeader>
+                          <TableBody>
+                            {importPreview.map((item, idx) => (
+                              <TableRow key={idx} className={item.status === 'erro' ? 'bg-destructive/5' : ''}>
+                                <TableCell className="text-xs">{item.nomePlanilha}</TableCell>
+                                <TableCell className="text-xs font-medium">
+                                  {item.funcionarioNome || (
+                                    <span className="text-destructive flex items-center gap-1">
+                                      <AlertCircle className="w-3 h-3" /> Não encontrado
+                                    </span>
+                                  )}
+                                </TableCell>
+                                <TableCell className="text-right font-mono text-xs">{item.horas}h</TableCell>
+                                <TableCell>
+                                  {item.status === 'sucesso' ? (
+                                    <Check className="w-4 h-4 text-success" />
+                                  ) : (
+                                    <AlertCircle className="w-4 h-4 text-destructive" />
+                                  )}
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </ScrollArea>
+                    </div>
+
+                    <DialogFooter className="mt-6 flex gap-2">
+                      <Button variant="ghost" onClick={() => setPreviewOpen(false)} className="flex-1">Cancelar</Button>
+                      <Button 
+                        onClick={confirmImport} 
+                        className="flex-1"
+                        disabled={isSavingImport || importPreview.filter(p => p.status === 'sucesso').length === 0}
+                      >
                         {isSavingImport ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Check className="w-4 h-4 mr-2" />}
-                        Confirmar e Salvar
+                        Salvar {importPreview.filter(p => p.status === 'sucesso').length} Lançamentos
                       </Button>
                     </DialogFooter>
                   </DialogContent>
@@ -364,7 +386,7 @@ const Lancamentos = () => {
               </TableHeader>
               <TableBody>
                 {transactions.length === 0 ? (
-                  <TableRow><TableCell colSpan={4} className="text-center py-8 text-muted-foreground italic">Nenhum lançamento encontrado.</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={4} className="text-center py-8 text-muted-foreground italic">Nenhum lançamento encontrado para {mesAnoLabel}.</TableCell></TableRow>
                 ) : (
                   transactions.map((tx) => (
                     <TableRow key={tx.id}>
