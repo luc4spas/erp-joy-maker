@@ -18,6 +18,7 @@ const MODULES = [
   { key: 'financeiro', label: 'Financeiro' },
   { key: 'colaboradores', label: 'Colaboradores' },
   { key: 'contas_pagar', label: 'Contas a Pagar' },
+  { key: 'folha_pagamento', label: 'Folha de Pagamento' },
   { key: 'upload', label: 'Upload' },
   { key: 'administracao', label: 'Administração' },
 ];
