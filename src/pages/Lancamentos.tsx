@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2, Plus, Trash2, ChevronLeft, ChevronRight, Calendar, DollarSign, Upload } from 'lucide-react';
+import { Loader2, Plus, Trash2, ChevronLeft, ChevronRight, Calendar, DollarSign, Download, Upload } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
@@ -40,8 +40,8 @@ interface Transaction {
 const typeLabels: Record<string, string> = { 
   vale: 'Vale', 
   bonus: 'Bônus', 
-  desconto: 'Desconto',
-  adicional_noturno: 'Adicional Noturno'
+  desconto: 'Desconto', 
+  adicional_noturno: 'Adicional Noturno' 
 };
 
 const typeColors: Record<string, string> = {
@@ -57,7 +57,7 @@ const Lancamentos = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [monthStart, setMonthStart] = useState(() => startOfMonth(new Date()));
-  const [form, setForm] = useState({ employee_id: '', transaction_type: 'vale' as 'vale' | 'bonus' | 'desconto' | 'adicional_noturno', amount: '', description: '' });
+  const [form, setForm] = useState({ employee_id: '', transaction_type: 'vale' as any, amount: '', description: '' });
 
   const navigate = useNavigate();
   const { user, isLoading: authLoading } = useAuth();
@@ -85,7 +85,6 @@ const Lancamentos = () => {
     setIsLoading(false);
   };
 
-  // Função de upload trazida para dentro do componente
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -94,60 +93,54 @@ const Lancamentos = () => {
     reader.onload = async (e) => {
       const text = e.target?.result as string;
       const lines = text.split('\n').slice(1);
+      const refMonth = format(monthStart, 'yyyy-MM-dd');
       
-      let sucessos = 0;
-
-      const imports = lines.map(line => {
-        const columns = line.split(','); 
+      let count = 0;
+      
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        const columns = line.split(',');
         const nomePlanilha = columns[0]?.replace(/"/g, '').trim();
         const horasNoturnasStr = columns[11]?.replace(/"/g, '').replace(',', '.');
-        return {
-          nome: nomePlanilha,
-          horas: parseFloat(horasNoturnasStr) || 0
-        };
-      }).filter(item => item.horas > 0);
+        const horas = parseFloat(horasNoturnasStr) || 0;
 
-      for (const item of imports) {
-        const funcionario = funcionarios.find(f => 
-          f.nome.trim().toUpperCase() === item.nome?.toUpperCase()
-        );
-
-        if (funcionario) {
-          await supabase.from('payroll_transactions').insert({
-            user_id: user?.id,
-            employee_id: funcionario.id,
-            transaction_type: 'adicional_noturno',
-            hours_quantity: item.horas,
-            amount: 0,
-            reference_month: format(monthStart, 'yyyy-MM-dd'),
-            description: 'Importado via planilha de ponto'
-          });
-          sucessos++;
+        if (horas > 0) {
+          const func = funcionarios.find(f => f.nome.trim().toUpperCase() === nomePlanilha.toUpperCase());
+          if (func) {
+            await supabase.from('payroll_transactions').insert({
+              employee_id: func.id,
+              transaction_type: 'adicional_noturno',
+              hours_quantity: horas,
+              amount: 0,
+              reference_month: refMonth,
+              description: 'Importado via planilha de ponto',
+              user_id: user?.id
+            });
+            count++;
+          }
         }
       }
       
-      toast({ title: "Importação Concluída", description: `${sucessos} registros de horas importados.` });
-      fetchData(); // Chama a função correta para recarregar a tela
+      toast({ title: "Sucesso", description: `${count} lançamentos de horas importados!` });
+      fetchData(); // Agora chamando a função correta
     };
     reader.readAsText(file);
-    
-    // Reseta o input de arquivo
-    event.target.value = '';
+    event.target.value = ''; // Limpa o input
   };
 
   const handleSubmit = async () => {
     if (!user || !form.employee_id || !form.amount) return;
     const refMonth = format(monthStart, 'yyyy-MM-dd');
+    const valorNumerico = parseFloat(form.amount.replace(',', '.'));
     const isNoturno = form.transaction_type === 'adicional_noturno';
-    const numericValue = parseFloat(form.amount.replace(',', '.'));
 
     try {
       const { error } = await supabase.from('payroll_transactions').insert({
         user_id: user.id,
         employee_id: form.employee_id,
         transaction_type: form.transaction_type,
-        amount: isNoturno ? 0 : numericValue, // Se for noturno, o valor financeiro é 0 (calculado no relatório)
-        hours_quantity: isNoturno ? numericValue : 0, // Guarda o número digitado como horas
+        amount: isNoturno ? 0 : valorNumerico,
+        hours_quantity: isNoturno ? valorNumerico : null,
         description: form.description || null,
         reference_month: refMonth,
       });
@@ -173,12 +166,10 @@ const Lancamentos = () => {
   const totalDescontos = transactions.filter(t => t.transaction_type === 'desconto').reduce((s, t) => s + Number(t.amount), 0);
 
   if (authLoading) return <div className="min-h-screen flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
-  if (!user) return null;
 
   return (
     <AppLayout title="Lançamentos" subtitle="Vales, bônus e descontos dos colaboradores">
       <div className="space-y-6">
-        {/* Month Selector & Action Buttons */}
         <div className="bg-card rounded-xl p-4 shadow-card border border-border flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <Button variant="outline" size="icon" onClick={() => setMonthStart(startOfMonth(subMonths(monthStart, 1)))}>
@@ -197,26 +188,18 @@ const Lancamentos = () => {
               <ChevronRight className="w-4 h-4" />
             </Button>
           </div>
-          
-          <div className="flex gap-2 flex-wrap">
+
+          <div className="flex gap-2">
             <Button variant="secondary" onClick={() => setMonthStart(startOfMonth(new Date()))}>Mês Atual</Button>
-            
             {canCreate && (
               <>
-                <Button variant="outline" className="relative cursor-pointer">
-                  <Upload className="w-4 h-4 mr-2" />
-                  Importar Ponto
-                  <input
-                    type="file"
-                    className="absolute inset-0 opacity-0 cursor-pointer"
-                    accept=".csv"
-                    onChange={handleFileUpload}
-                  />
+                <Button variant="outline" className="relative">
+                  <Upload className="w-4 h-4 mr-2" /> Importar Ponto
+                  <input type="file" className="absolute inset-0 opacity-0 cursor-pointer" accept=".csv" onChange={handleFileUpload} />
                 </Button>
-
                 <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
                   <DialogTrigger asChild>
-                    <Button className="gap-2"><Plus className="w-4 h-4" />Novo Lançamento</Button>
+                    <Button className="gap-2"><Plus className="w-4 h-4" /> Novo Lançamento</Button>
                   </DialogTrigger>
                   <DialogContent>
                     <DialogHeader><DialogTitle>Novo Lançamento</DialogTitle></DialogHeader>
@@ -226,9 +209,7 @@ const Lancamentos = () => {
                         <Select value={form.employee_id} onValueChange={(v) => setForm({ ...form, employee_id: v })}>
                           <SelectTrigger><SelectValue placeholder="Selecionar colaborador" /></SelectTrigger>
                           <SelectContent>
-                            {funcionarios.map(f => (
-                              <SelectItem key={f.id} value={f.id}>{f.nome}</SelectItem>
-                            ))}
+                            {funcionarios.map(f => <SelectItem key={f.id} value={f.id}>{f.nome}</SelectItem>)}
                           </SelectContent>
                         </Select>
                       </div>
@@ -246,20 +227,13 @@ const Lancamentos = () => {
                           </Select>
                         </div>
                         <div>
-                          <Label>{form.transaction_type === 'adicional_noturno' ? 'Quantidade de Horas' : 'Valor (R$)'}</Label>
-                          <Input 
-                            type="number" 
-                            step="0.01" 
-                            min="0" 
-                            value={form.amount} 
-                            onChange={(e) => setForm({ ...form, amount: e.target.value })} 
-                            placeholder={form.transaction_type === 'adicional_noturno' ? "Ex: 25.5" : "0,00"} 
-                          />
+                          <Label>{form.transaction_type === 'adicional_noturno' ? 'Horas' : 'Valor (R$)'}</Label>
+                          <Input type="number" step="0.01" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} placeholder="0,00" />
                         </div>
                       </div>
                       <div>
                         <Label>Descrição (opcional)</Label>
-                        <Input value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Observação do lançamento" />
+                        <Input value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Observação" />
                       </div>
                       <Button onClick={handleSubmit} className="w-full">Salvar Lançamento</Button>
                     </div>
@@ -270,7 +244,6 @@ const Lancamentos = () => {
           </div>
         </div>
 
-        {/* Summary */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div className="bg-card rounded-xl p-4 shadow-card border border-border">
             <p className="text-xs text-muted-foreground">Total Vales</p>
@@ -286,14 +259,8 @@ const Lancamentos = () => {
           </div>
         </div>
 
-        {/* Table */}
         {isLoading ? (
           <div className="flex justify-center py-12"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
-        ) : transactions.length === 0 ? (
-          <div className="text-center py-16 bg-card rounded-2xl shadow-card">
-            <DollarSign className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
-            <p className="text-muted-foreground">Nenhum lançamento para este mês.</p>
-          </div>
         ) : (
           <div className="bg-card rounded-2xl shadow-card overflow-hidden">
             <Table>
@@ -317,9 +284,8 @@ const Lancamentos = () => {
                     </TableCell>
                     <TableCell className={`text-right tabular-nums font-semibold ${tx.transaction_type === 'vale' || tx.transaction_type === 'desconto' ? 'text-destructive' : 'text-success'}`}>
                       {tx.transaction_type === 'adicional_noturno' 
-                        ? `${tx.hours_quantity}h`
-                        : (tx.transaction_type === 'vale' || tx.transaction_type === 'desconto' ? '- ' : '+ ') + formatCurrency(tx.amount)
-                      }
+                        ? `${tx.hours_quantity}h` 
+                        : (tx.transaction_type === 'vale' || tx.transaction_type === 'desconto' ? '- ' : '+ ') + formatCurrency(tx.amount)}
                     </TableCell>
                     <TableCell className="hidden md:table-cell text-muted-foreground">{tx.description || '-'}</TableCell>
                     {canDelete && (
