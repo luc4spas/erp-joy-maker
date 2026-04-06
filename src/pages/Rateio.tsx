@@ -610,7 +610,14 @@ const Rateio = () => {
   if (!user) return null;
 
   return (
-    <AppLayout title="Rateio Semanal" subtitle="Distribuição de comissões por período">
+    <AppLayout title="Rateio de Comissões" subtitle="Distribuição semanal e mensal de comissões">
+      <Tabs defaultValue="semanal" className="space-y-6">
+        <TabsList className="grid w-full max-w-md grid-cols-2">
+          <TabsTrigger value="semanal">Rateio Semanal</TabsTrigger>
+          <TabsTrigger value="mensal">Rateio Mensal</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="semanal">
       <div className="space-y-6 animate-fade-in">
         {/* Seletor de Semana */}
         <div className="bg-card rounded-xl p-4 shadow-card border border-border flex flex-wrap items-center justify-between gap-4">
