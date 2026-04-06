@@ -28,262 +28,224 @@ interface Funcionario {
 interface Transaction {
   id: string;
   employee_id: string;
-  transaction_type: 'vale' | 'bonus' | 'desconto';
+  transaction_type: 'vale' | 'bonus' | 'desconto' | 'adicional_noturno';
   amount: number;
-  description: string | null;
+  hours_quantity?: number;
+  description: string;
   reference_month: string;
   created_at: string;
   funcionario?: Funcionario;
 }
 
-const typeLabels: Record<string, string> = { vale: 'Vale', bonus: 'Bônus', desconto: 'Desconto' };
-const typeColors: Record<string, string> = {
-  vale: 'bg-destructive/10 text-destructive',
-  bonus: 'bg-success/20 text-success',
-  desconto: 'bg-muted text-muted-foreground',
+const typeLabels: Record<string, string> = {
+  vale: 'Vale',
+  bonus: 'Bônus',
+  desconto: 'Desconto',
+  adicional_noturno: 'Adicional Noturno',
 };
 
-const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-  const file = event.target.files?.[0];
-  if (!file) return;
-
-  const reader = new FileReader();
-  reader.onload = async (e) => {
-    const text = e.target?.result as string;
-    
-    // Divide as linhas (pulando o cabeçalho)
-    const lines = text.split('\n').slice(1);
-    
-    const imports = lines.map(line => {
-      // Divide por vírgula ou ponto-e-vírgula dependendo do seu CSV
-      const columns = line.split(','); 
-      
-      const nomePlanilha = columns[0]?.replace(/"/g, '').trim(); // Coluna A (Nome)
-      const horasNoturnasStr = columns[11]?.replace(/"/g, '').replace(',', '.'); // Coluna L (Adic. Noturno)
-      
-      return {
-        nome: nomePlanilha,
-        horas: parseFloat(horasNoturnasStr) || 0
-      };
-    }).filter(item => item.horas > 0);
-
-    // Agora, para cada item, buscamos o ID do funcionário no seu array 'funcionarios'
-    for (const item of imports) {
-      const funcionario = funcionarios.find(f => 
-        f.nome.toUpperCase() === item.nome.toUpperCase()
-      );
-
-      if (funcionario) {
-        // Salva no Supabase
-        await supabase.from('payroll_transactions').insert({
-          employee_id: funcionario.id,
-          transaction_type: 'adicional_noturno',
-          hours_quantity: item.horas,
-          amount: 0, // O valor em R$ será calculado no FechamentoFolha.tsx
-          reference_month: monthStart.toISOString(),
-          description: 'Importado via planilha de ponto'
-        });
-      }
-    }
-    
-    toast({ title: "Sucesso", description: "Horas noturnas importadas com sucesso!" });
-    fetchTransactions(); // Recarrega a lista na tela
-  };
-  reader.readAsText(file);
+const typeColors: Record<string, string> = {
+  vale: 'bg-destructive/10 text-destructive border-destructive/20',
+  bonus: 'bg-success/10 text-success border-success/20',
+  desconto: 'bg-destructive/10 text-destructive border-destructive/20',
+  adicional_noturno: 'bg-blue-500/10 text-blue-600 border-blue-200',
 };
 
 const Lancamentos = () => {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [funcionarios, setFuncionarios] = useState<Funcionario[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [dialogOpen, setDialogOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [monthStart, setMonthStart] = useState(() => startOfMonth(new Date()));
-  const [form, setForm] = useState({ employee_id: '', transaction_type: 'vale' as 'vale' | 'bonus' | 'desconto', amount: '', description: '' });
+
+  // Form states
+  const [employeeId, setEmployeeId] = useState('');
+  const [type, setType] = useState<'vale' | 'bonus' | 'desconto' | 'adicional_noturno'>('vale');
+  const [amount, setAmount] = useState('');
+  const [hours, setHours] = useState('');
+  const [description, setDescription] = useState('');
 
   const navigate = useNavigate();
   const { user, isLoading: authLoading } = useAuth();
-  const { hasPermission } = usePermissions();
+  const { permissions } = usePermissions();
   const { toast } = useToast();
 
-  const canCreate = hasPermission('folha_pagamento', 'create');
-  const canDelete = hasPermission('folha_pagamento', 'delete');
+  const canWrite = permissions?.includes('admin') || permissions?.includes('manager');
+  const canDelete = permissions?.includes('admin');
 
-  useEffect(() => { if (!authLoading && !user) navigate('/auth'); }, [user, authLoading, navigate]);
-  useEffect(() => { if (user) fetchData(); }, [user, monthStart]);
+  useEffect(() => {
+    if (!authLoading && !user) navigate('/auth');
+  }, [user, authLoading, navigate]);
+
+  useEffect(() => {
+    if (user) {
+      fetchData();
+    }
+  }, [user, monthStart]);
 
   const fetchData = async () => {
     setIsLoading(true);
     const refMonth = format(monthStart, 'yyyy-MM-dd');
-    const [funcRes, txRes] = await Promise.all([
-      supabase.from('funcionarios').select('*').eq('ativo', true).order('nome'),
-      supabase.from('payroll_transactions').select('*').eq('reference_month', refMonth).order('created_at', { ascending: false }),
+
+    const [txRes, funcRes] = await Promise.all([
+      supabase
+        .from('payroll_transactions')
+        .select(`
+          *,
+          funcionario:funcionarios(id, nome, setor, frente, ativo)
+        `)
+        .eq('reference_month', refMonth)
+        .order('created_at', { ascending: false }),
+      supabase
+        .from('funcionarios')
+        .select('*')
+        .eq('ativo', true)
+        .order('nome')
     ]);
-    if (funcRes.data) setFuncionarios(funcRes.data as Funcionario[]);
-    if (txRes.data) {
-      const funcsMap = new Map((funcRes.data || []).map((f: any) => [f.id, f]));
-      setTransactions((txRes.data as any[]).map(tx => ({ ...tx, funcionario: funcsMap.get(tx.employee_id) })));
-    }
+
+    setTransactions((txRes.data || []) as Transaction[]);
+    setFuncionarios((funcRes.data || []) as Funcionario[]);
     setIsLoading(false);
   };
 
-  const handleSubmit = async () => {
-    if (!user || !form.employee_id || !form.amount) return;
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!employeeId || (!amount && type !== 'adicional_noturno') || (type === 'adicional_noturno' && !hours)) return;
+
+    setIsSubmitting(true);
     const refMonth = format(monthStart, 'yyyy-MM-dd');
-    try {
-      const { error } = await supabase.from('payroll_transactions').insert({
-        user_id: user.id,
-        employee_id: form.employee_id,
-        transaction_type: form.transaction_type,
-        amount: parseFloat(form.amount.replace(',', '.')),
-        description: form.description || null,
-        reference_month: refMonth,
-      });
-      if (error) throw error;
-      toast({ title: 'Lançamento salvo!' });
-      setDialogOpen(false);
-      setForm({ employee_id: '', transaction_type: 'vale', amount: '', description: '' });
+
+    const { error } = await supabase.from('payroll_transactions').insert({
+      employee_id: employeeId,
+      transaction_type: type,
+      amount: type === 'adicional_noturno' ? 0 : Number(amount),
+      hours_quantity: type === 'adicional_noturno' ? Number(hours) : null,
+      description,
+      reference_month: refMonth,
+      user_id: user?.id
+    });
+
+    if (error) {
+      toast({ variant: 'destructive', title: 'Erro ao salvar', description: error.message });
+    } else {
+      toast({ title: 'Sucesso', description: 'Lançamento registrado.' });
+      setIsDialogOpen(false);
+      setEmployeeId('');
+      setAmount('');
+      setHours('');
+      setDescription('');
       fetchData();
-    } catch (e: any) {
-      toast({ title: 'Erro', description: e.message, variant: 'destructive' });
     }
+    setIsSubmitting(false);
   };
 
   const handleDelete = async (id: string) => {
+    if (!confirm('Excluir este lançamento?')) return;
     const { error } = await supabase.from('payroll_transactions').delete().eq('id', id);
-    if (error) toast({ title: 'Erro', description: error.message, variant: 'destructive' });
-    else { toast({ title: 'Excluído!' }); fetchData(); }
+    if (error) {
+      toast({ variant: 'destructive', title: 'Erro ao excluir', description: error.message });
+    } else {
+      fetchData();
+    }
   };
 
   const mesAnoLabel = format(monthStart, "MMMM 'de' yyyy", { locale: ptBR });
-  const totalVales = transactions.filter(t => t.transaction_type === 'vale').reduce((s, t) => s + Number(t.amount), 0);
-  const totalBonus = transactions.filter(t => t.transaction_type === 'bonus').reduce((s, t) => s + Number(t.amount), 0);
-  const totalDescontos = transactions.filter(t => t.transaction_type === 'desconto').reduce((s, t) => s + Number(t.amount), 0);
 
   if (authLoading) return <div className="min-h-screen flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
-  if (!user) return null;
 
   return (
-    <AppLayout title="Lançamentos" subtitle="Vales, bônus e descontos dos colaboradores">
+    <AppLayout title="Lançamentos de Folha" subtitle="Gestão de vales, bônus e adicionais">
       <div className="space-y-6">
-        {/* Month Selector */}
         <div className="bg-card rounded-xl p-4 shadow-card border border-border flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <Button variant="outline" size="icon" onClick={() => setMonthStart(startOfMonth(subMonths(monthStart, 1)))}>
               <ChevronLeft className="w-4 h-4" />
             </Button>
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-secondary flex items-center justify-center">
-                <Calendar className="w-5 h-5 text-primary" />
-              </div>
+              <Calendar className="w-5 h-5 text-primary" />
               <div>
                 <p className="text-xs text-muted-foreground">Mês de Referência</p>
-                <p className="text-lg font-semibold text-foreground capitalize">{mesAnoLabel}</p>
+                <p className="text-lg font-semibold capitalize">{mesAnoLabel}</p>
               </div>
             </div>
             <Button variant="outline" size="icon" onClick={() => setMonthStart(startOfMonth(addMonths(monthStart, 1)))}>
               <ChevronRight className="w-4 h-4" />
             </Button>
           </div>
-          <div className="flex gap-2">
-            <Button variant="secondary" onClick={() => setMonthStart(startOfMonth(new Date()))}>Mês Atual</Button>
-            {canCreate && (
-              <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-                <DialogTrigger asChild>
-                  <Button className="gap-2"><Plus className="w-4 h-4" />Novo Lançamento</Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader><DialogTitle>Novo Lançamento</DialogTitle></DialogHeader>
-                  <div className="space-y-4 py-4">
-                    <div>
-                      <Label>Colaborador</Label>
-                      <Select value={form.employee_id} onValueChange={(v) => setForm({ ...form, employee_id: v })}>
-                        <SelectTrigger><SelectValue placeholder="Selecionar colaborador" /></SelectTrigger>
-                        <SelectContent>
-                          {funcionarios.map(f => (
-                            <SelectItem key={f.id} value={f.id}>{f.nome}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <Label>Tipo</Label>
-                        <Select value={form.transaction_type} onValueChange={(v: any) => setForm({ ...form, transaction_type: v })}>
-                          <SelectTrigger><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="vale">Vale</SelectItem>
-                            <SelectItem value="bonus">Bônus</SelectItem>
-                            <SelectItem value="desconto">Desconto</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div>
-                        <Label>Valor (R$)</Label>
-                        <Input type="number" step="0.01" min="0" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} placeholder="0,00" />
-                      </div>
-                    </div>
-                    <div>
-                      <Label>Descrição (opcional)</Label>
-                      <Input value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Observação do lançamento" />
-                    </div>
-                    <Button onClick={handleSubmit} className="w-full">Salvar Lançamento</Button>
+
+          {canWrite && (
+            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+              <DialogTrigger asChild>
+                <Button className="gap-2"><Plus className="w-4 h-4" /> Novo Lançamento</Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader><DialogTitle>Novo Lançamento</DialogTitle></DialogHeader>
+                <form onSubmit={handleSubmit} className="space-y-4 pt-4">
+                  <div className="space-y-2">
+                    <Label>Colaborador</Label>
+                    <Select value={employeeId} onValueChange={setEmployeeId}>
+                      <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
+                      <SelectContent>
+                        {funcionarios.map(f => <SelectItem key={f.id} value={f.id}>{f.nome}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
                   </div>
-                </DialogContent>
-              </Dialog>
-            )}
-          </div>
-          <div className="flex gap-2">
-  <Button variant="outline" className="relative">
-    <Download className="w-4 h-4 mr-2" />
-    Importar Ponto
-    <input
-      type="file"
-      className="absolute inset-0 opacity-0 cursor-pointer"
-      accept=".csv"
-      onChange={handleFileUpload}
-    />
-  </Button>
-  
-  <Button onClick={() => setIsOpen(true)}>
-    <Plus className="w-4 h-4 mr-2" /> Novo Lançamento
-  </Button>
-</div>
+                  <div className="space-y-2">
+                    <Label>Tipo</Label>
+                    <Select value={type} onValueChange={(v: any) => setType(v)}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="vale">Vale</SelectItem>
+                        <SelectItem value="bonus">Bônus</SelectItem>
+                        <SelectItem value="desconto">Desconto</SelectItem>
+                        <SelectItem value="adicional_noturno">Adicional Noturno</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  {type === 'adicional_noturno' ? (
+                    <div className="space-y-2">
+                      <Label>Quantidade de Horas</Label>
+                      <Input type="number" step="0.01" value={hours} onChange={e => setHours(e.target.value)} placeholder="Ex: 50.81" />
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <Label>Valor (R$)</Label>
+                      <Input type="number" step="0.01" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0,00" />
+                    </div>
+                  )}
+
+                  <div className="space-y-2">
+                    <Label>Observação (Opcional)</Label>
+                    <Input value={description} onChange={e => setDescription(e.target.value)} placeholder="Ex: Adiantamento dia 15" />
+                  </div>
+                  <Button type="submit" className="w-full" disabled={isSubmitting}>
+                    {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Salvar Lançamento'}
+                  </Button>
+                </form>
+              </DialogContent>
+            </Dialog>
+          )}
         </div>
 
-        {/* Summary */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div className="bg-card rounded-xl p-4 shadow-card border border-border">
-            <p className="text-xs text-muted-foreground">Total Vales</p>
-            <p className="text-2xl font-bold text-destructive">{formatCurrency(totalVales)}</p>
-          </div>
-          <div className="bg-card rounded-xl p-4 shadow-card border border-border">
-            <p className="text-xs text-muted-foreground">Total Bônus</p>
-            <p className="text-2xl font-bold text-success">{formatCurrency(totalBonus)}</p>
-          </div>
-          <div className="bg-card rounded-xl p-4 shadow-card border border-border">
-            <p className="text-xs text-muted-foreground">Total Descontos</p>
-            <p className="text-2xl font-bold text-muted-foreground">{formatCurrency(totalDescontos)}</p>
-          </div>
-        </div>
-
-        {/* Table */}
         {isLoading ? (
           <div className="flex justify-center py-12"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
         ) : transactions.length === 0 ? (
-          <div className="text-center py-16 bg-card rounded-2xl shadow-card">
+          <div className="text-center py-16 bg-card rounded-2xl shadow-card border border-border">
             <DollarSign className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
             <p className="text-muted-foreground">Nenhum lançamento para este mês.</p>
           </div>
         ) : (
-          <div className="bg-card rounded-2xl shadow-card overflow-hidden">
+          <div className="bg-card rounded-2xl shadow-card overflow-hidden border border-border">
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Colaborador</TableHead>
                   <TableHead>Tipo</TableHead>
-                  <TableHead className="text-right">Valor</TableHead>
+                  <TableHead className="text-right">Valor/Qtd</TableHead>
                   <TableHead className="hidden md:table-cell">Descrição</TableHead>
-                  {canDelete && <TableHead>Ações</TableHead>}
+                  {canDelete && <TableHead className="w-[50px]"></TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -296,7 +258,10 @@ const Lancamentos = () => {
                       </Badge>
                     </TableCell>
                     <TableCell className={`text-right tabular-nums font-semibold ${tx.transaction_type === 'vale' || tx.transaction_type === 'desconto' ? 'text-destructive' : 'text-success'}`}>
-                      {tx.transaction_type === 'vale' || tx.transaction_type === 'desconto' ? '- ' : '+ '}{formatCurrency(tx.amount)}
+                      {tx.transaction_type === 'adicional_noturno' 
+                        ? `${tx.hours_quantity}h`
+                        : (tx.transaction_type === 'vale' || tx.transaction_type === 'desconto' ? '- ' : '+ ') + formatCurrency(tx.amount)
+                      }
                     </TableCell>
                     <TableCell className="hidden md:table-cell text-muted-foreground">{tx.description || '-'}</TableCell>
                     {canDelete && (
