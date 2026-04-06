@@ -824,6 +824,12 @@ const Rateio = () => {
           </div>
         )}
       </div>
+        </TabsContent>
+
+        <TabsContent value="mensal">
+          <RateioMensal />
+        </TabsContent>
+      </Tabs>
     </AppLayout>
   );
 };
