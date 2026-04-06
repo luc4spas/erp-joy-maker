@@ -31,7 +31,8 @@ interface Funcionario {
   base_salary: number;
 }
 
-const defaultForm = { nome: '', setor: 'Garçom' as const, frente: 'Ambas' as const, ativo: true, birth_date: undefined as Date | undefined, base_salary: '' };
+type FormState = { nome: string; setor: 'Garçom' | 'Cozinha' | 'Administrativo'; frente: 'Japa' | 'Trattoria' | 'Ambas'; ativo: boolean; birth_date: Date | undefined; base_salary: string };
+const defaultForm: FormState = { nome: '', setor: 'Garçom', frente: 'Ambas', ativo: true, birth_date: undefined, base_salary: '' };
 
 const getSetorCompleto = (f: Funcionario): string => {
   if (f.setor === 'Administrativo') return 'CAIXA/ADM/CUMINS';
