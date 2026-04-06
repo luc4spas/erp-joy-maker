@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2, Plus, Trash2, ChevronLeft, ChevronRight, Calendar, Upload, Check, AlertCircle } from 'lucide-react';
+import { Loader2, Plus, Trash2, ChevronLeft, ChevronRight, Calendar, Upload, Check, AlertCircle, DollarSign } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
@@ -116,7 +116,7 @@ const Lancamentos = () => {
         const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[][];
 
         const normalize = (txt: string) => 
-          txt.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().trim();
+          txt.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().trim().replace(/\s+/g, ' ');
 
         const previewData: ImportPreview[] = [];
 
@@ -124,16 +124,30 @@ const Lancamentos = () => {
           if (!row || row.length === 0) continue;
           
           const nomeBruto = row[0]?.toString() || "";
+          if (!nomeBruto) continue;
+
           const nomePlanilhaNorm = normalize(nomeBruto);
+          const partesPlanilha = nomePlanilhaNorm.split(' ');
+          const primeiroUltimoPlanilha = `${partesPlanilha[0]} ${partesPlanilha[partesPlanilha.length - 1]}`;
+
           const valorNoturnoRaw = row[11];
           const horas = typeof valorNoturnoRaw === 'string' 
             ? parseFloat(valorNoturnoRaw.replace(',', '.')) 
             : parseFloat(valorNoturnoRaw) || 0;
 
-          if (horas > 0 && nomeBruto) {
+          if (horas > 0) {
+            // Busca Inteligente
             const func = funcionarios.find(f => {
-              const nomeSistema = normalize(f.nome);
-              return nomePlanilhaNorm.includes(nomeSistema) || nomeSistema.includes(nomePlanilhaNorm);
+              const nomeSistemaNorm = normalize(f.nome);
+              
+              // 1. Tenta match exato ou parcial (contido um no outro)
+              if (nomePlanilhaNorm.includes(nomeSistemaNorm) || nomeSistemaNorm.includes(nomePlanilhaNorm)) return true;
+              
+              // 2. Tenta match por Primeiro + Último nome (resolve as abreviações do N. Silva)
+              const partesSistema = nomeSistemaNorm.split(' ');
+              const primeiroUltimoSistema = `${partesSistema[0]} ${partesSistema[partesSistema.length - 1]}`;
+              
+              return primeiroUltimoPlanilha === primeiroUltimoSistema;
             });
 
             previewData.push({
@@ -297,17 +311,17 @@ const Lancamentos = () => {
 
                     <div className="p-6 pt-2 space-y-4">
                       <div className="bg-muted/30 p-3 rounded-lg text-sm">
-                        <div className="flex justify-between">
+                        <div className="flex justify-between font-medium">
                           <span>Total lido:</span>
-                          <span className="font-bold">{importPreview.length}</span>
+                          <span>{importPreview.length} registros</span>
                         </div>
-                        <div className="flex justify-between text-success">
+                        <div className="flex justify-between text-success font-medium">
                           <span>Prontos para salvar:</span>
-                          <span className="font-bold">{importPreview.filter(p => p.status === 'sucesso').length}</span>
+                          <span>{importPreview.filter(p => p.status === 'sucesso').length}</span>
                         </div>
-                        <div className="flex justify-between text-destructive">
+                        <div className="flex justify-between text-destructive font-medium">
                           <span>Inconsistentes:</span>
-                          <span className="font-bold">{importPreview.filter(p => p.status === 'erro').length}</span>
+                          <span>{importPreview.filter(p => p.status === 'erro').length}</span>
                         </div>
                       </div>
                       
@@ -362,10 +376,6 @@ const Lancamentos = () => {
                           <Input type="number" step="0.01" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} placeholder="0,00" />
                         </div>
                       </div>
-                      <div>
-                        <Label>Descrição (opcional)</Label>
-                        <Input value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Ex: Adiantamento" />
-                      </div>
                       <Button onClick={handleSubmit} className="w-full">Salvar Lançamento</Button>
                     </div>
                   </DialogContent>
@@ -407,7 +417,7 @@ const Lancamentos = () => {
                 {transactions.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={canDelete ? 4 : 3} className="text-center py-8 text-muted-foreground italic">
-                      Nenhum lançamento encontrado para este mês.
+                      Nenhum lançamento encontrado.
                     </TableCell>
                   </TableRow>
                 ) : (
