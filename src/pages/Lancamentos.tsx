@@ -9,13 +9,14 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2, Plus, Trash2, ChevronLeft, ChevronRight, Calendar, DollarSign, Download, Upload } from 'lucide-react';
+import { Loader2, Plus, Trash2, ChevronLeft, ChevronRight, Calendar, DollarSign, Upload } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { format, startOfMonth, addMonths, subMonths } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { formatCurrency } from '@/lib/processData';
+import * as XLSX from 'xlsx';
 
 interface Funcionario {
   id: string;
@@ -40,8 +41,8 @@ interface Transaction {
 const typeLabels: Record<string, string> = { 
   vale: 'Vale', 
   bonus: 'Bônus', 
-  desconto: 'Desconto', 
-  adicional_noturno: 'Adicional Noturno' 
+  desconto: 'Desconto',
+  adicional_noturno: 'Adicional Noturno'
 };
 
 const typeColors: Record<string, string> = {
@@ -57,7 +58,12 @@ const Lancamentos = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [monthStart, setMonthStart] = useState(() => startOfMonth(new Date()));
-  const [form, setForm] = useState({ employee_id: '', transaction_type: 'vale' as any, amount: '', description: '' });
+  const [form, setForm] = useState({ 
+    employee_id: '', 
+    transaction_type: 'vale' as 'vale' | 'bonus' | 'desconto' | 'adicional_noturno', 
+    amount: '', 
+    description: '' 
+  });
 
   const navigate = useNavigate();
   const { user, isLoading: authLoading } = useAuth();
@@ -91,47 +97,52 @@ const Lancamentos = () => {
 
     const reader = new FileReader();
     reader.onload = async (e) => {
-      const text = e.target?.result as string;
-      const lines = text.split('\n').slice(1);
-      const refMonth = format(monthStart, 'yyyy-MM-dd');
-      
-      let count = 0;
-      
-      for (const line of lines) {
-        if (!line.trim()) continue;
-        const columns = line.split(',');
-        const nomePlanilha = columns[0]?.replace(/"/g, '').trim();
-        const horasNoturnasStr = columns[11]?.replace(/"/g, '').replace(',', '.');
-        const horas = parseFloat(horasNoturnasStr) || 0;
+      try {
+        const data = new Uint8Array(e.target?.result as ArrayBuffer);
+        const workbook = XLSX.read(data, { type: 'array' });
+        const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+        const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[][];
 
-        if (horas > 0) {
-          const func = funcionarios.find(f => f.nome.trim().toUpperCase() === nomePlanilha.toUpperCase());
-          if (func) {
-            await supabase.from('payroll_transactions').insert({
-              employee_id: func.id,
-              transaction_type: 'adicional_noturno',
-              hours_quantity: horas,
-              amount: 0,
-              reference_month: refMonth,
-              description: 'Importado via planilha de ponto',
-              user_id: user?.id
-            });
-            count++;
+        const refMonth = format(monthStart, 'yyyy-MM-dd');
+        let count = 0;
+
+        for (const row of jsonData.slice(1)) {
+          const nomePlanilha = row[0]?.toString().trim();
+          const valorNoturnoRaw = row[11];
+          const horas = typeof valorNoturnoRaw === 'string' 
+            ? parseFloat(valorNoturnoRaw.replace(',', '.')) 
+            : parseFloat(valorNoturnoRaw) || 0;
+
+          if (horas > 0 && nomePlanilha) {
+            const func = funcionarios.find(f => f.nome.trim().toUpperCase() === nomePlanilha.toUpperCase());
+            if (func) {
+              await supabase.from('payroll_transactions').insert({
+                user_id: user?.id,
+                employee_id: func.id,
+                transaction_type: 'adicional_noturno',
+                hours_quantity: horas,
+                amount: 0,
+                reference_month: refMonth,
+                description: 'Importado via Excel (Ponto)'
+              });
+              count++;
+            }
           }
         }
+        toast({ title: "Sucesso", description: `${count} lançamentos importados!` });
+        fetchData();
+      } catch (err) {
+        toast({ variant: "destructive", title: "Erro ao ler Excel" });
       }
-      
-      toast({ title: "Sucesso", description: `${count} lançamentos de horas importados!` });
-      fetchData(); // Agora chamando a função correta
     };
-    reader.readAsText(file);
-    event.target.value = ''; // Limpa o input
+    reader.readAsArrayBuffer(file);
+    event.target.value = '';
   };
 
   const handleSubmit = async () => {
     if (!user || !form.employee_id || !form.amount) return;
     const refMonth = format(monthStart, 'yyyy-MM-dd');
-    const valorNumerico = parseFloat(form.amount.replace(',', '.'));
+    const valor = parseFloat(form.amount.replace(',', '.'));
     const isNoturno = form.transaction_type === 'adicional_noturno';
 
     try {
@@ -139,8 +150,8 @@ const Lancamentos = () => {
         user_id: user.id,
         employee_id: form.employee_id,
         transaction_type: form.transaction_type,
-        amount: isNoturno ? 0 : valorNumerico,
-        hours_quantity: isNoturno ? valorNumerico : null,
+        amount: isNoturno ? 0 : valor,
+        hours_quantity: isNoturno ? valor : 0,
         description: form.description || null,
         reference_month: refMonth,
       });
@@ -161,28 +172,26 @@ const Lancamentos = () => {
   };
 
   const mesAnoLabel = format(monthStart, "MMMM 'de' yyyy", { locale: ptBR });
-  const totalVales = transactions.filter(t => t.transaction_type === 'vale').reduce((s, t) => s + Number(t.amount), 0);
-  const totalBonus = transactions.filter(t => t.transaction_type === 'bonus').reduce((s, t) => s + Number(t.amount), 0);
-  const totalDescontos = transactions.filter(t => t.transaction_type === 'desconto').reduce((s, t) => s + Number(t.amount), 0);
+  const totals = transactions.reduce((acc, t) => {
+    if (t.transaction_type === 'vale') acc.vales += Number(t.amount);
+    if (t.transaction_type === 'bonus') acc.bonus += Number(t.amount);
+    if (t.transaction_type === 'desconto') acc.descontos += Number(t.amount);
+    return acc;
+  }, { vales: 0, bonus: 0, descontos: 0 });
 
   if (authLoading) return <div className="min-h-screen flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
 
   return (
-    <AppLayout title="Lançamentos" subtitle="Vales, bônus e descontos dos colaboradores">
+    <AppLayout title="Lançamentos" subtitle="Gestão de folha e adicionais">
       <div className="space-y-6">
         <div className="bg-card rounded-xl p-4 shadow-card border border-border flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <Button variant="outline" size="icon" onClick={() => setMonthStart(startOfMonth(subMonths(monthStart, 1)))}>
               <ChevronLeft className="w-4 h-4" />
             </Button>
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-secondary flex items-center justify-center">
-                <Calendar className="w-5 h-5 text-primary" />
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Mês de Referência</p>
-                <p className="text-lg font-semibold text-foreground capitalize">{mesAnoLabel}</p>
-              </div>
+            <div>
+              <p className="text-xs text-muted-foreground font-medium">Mês de Referência</p>
+              <p className="text-lg font-semibold text-foreground capitalize">{mesAnoLabel}</p>
             </div>
             <Button variant="outline" size="icon" onClick={() => setMonthStart(startOfMonth(addMonths(monthStart, 1)))}>
               <ChevronRight className="w-4 h-4" />
@@ -190,16 +199,15 @@ const Lancamentos = () => {
           </div>
 
           <div className="flex gap-2">
-            <Button variant="secondary" onClick={() => setMonthStart(startOfMonth(new Date()))}>Mês Atual</Button>
             {canCreate && (
               <>
-                <Button variant="outline" className="relative">
-                  <Upload className="w-4 h-4 mr-2" /> Importar Ponto
-                  <input type="file" className="absolute inset-0 opacity-0 cursor-pointer" accept=".csv" onChange={handleFileUpload} />
+                <Button variant="outline" className="relative cursor-pointer">
+                  <Upload className="w-4 h-4 mr-2" /> Importar Excel
+                  <input type="file" className="absolute inset-0 opacity-0 cursor-pointer" accept=".xlsx, .xls" onChange={handleFileUpload} />
                 </Button>
                 <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
                   <DialogTrigger asChild>
-                    <Button className="gap-2"><Plus className="w-4 h-4" /> Novo Lançamento</Button>
+                    <Button className="gap-2"><Plus className="w-4 h-4" /> Novo</Button>
                   </DialogTrigger>
                   <DialogContent>
                     <DialogHeader><DialogTitle>Novo Lançamento</DialogTitle></DialogHeader>
@@ -207,7 +215,7 @@ const Lancamentos = () => {
                       <div>
                         <Label>Colaborador</Label>
                         <Select value={form.employee_id} onValueChange={(v) => setForm({ ...form, employee_id: v })}>
-                          <SelectTrigger><SelectValue placeholder="Selecionar colaborador" /></SelectTrigger>
+                          <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                           <SelectContent>
                             {funcionarios.map(f => <SelectItem key={f.id} value={f.id}>{f.nome}</SelectItem>)}
                           </SelectContent>
@@ -222,7 +230,7 @@ const Lancamentos = () => {
                               <SelectItem value="vale">Vale</SelectItem>
                               <SelectItem value="bonus">Bônus</SelectItem>
                               <SelectItem value="desconto">Desconto</SelectItem>
-                              <SelectItem value="adicional_noturno">Adicional Noturno</SelectItem>
+                              <SelectItem value="adicional_noturno">Adic. Noturno</SelectItem>
                             </SelectContent>
                           </Select>
                         </div>
@@ -231,11 +239,7 @@ const Lancamentos = () => {
                           <Input type="number" step="0.01" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} placeholder="0,00" />
                         </div>
                       </div>
-                      <div>
-                        <Label>Descrição (opcional)</Label>
-                        <Input value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Observação" />
-                      </div>
-                      <Button onClick={handleSubmit} className="w-full">Salvar Lançamento</Button>
+                      <Button onClick={handleSubmit} className="w-full">Salvar</Button>
                     </div>
                   </DialogContent>
                 </Dialog>
@@ -245,32 +249,31 @@ const Lancamentos = () => {
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div className="bg-card rounded-xl p-4 shadow-card border border-border">
-            <p className="text-xs text-muted-foreground">Total Vales</p>
-            <p className="text-2xl font-bold text-destructive">{formatCurrency(totalVales)}</p>
+          <div className="bg-card rounded-xl p-4 border border-border shadow-sm">
+            <p className="text-xs text-muted-foreground">Vales</p>
+            <p className="text-2xl font-bold text-destructive">{formatCurrency(totals.vales)}</p>
           </div>
-          <div className="bg-card rounded-xl p-4 shadow-card border border-border">
-            <p className="text-xs text-muted-foreground">Total Bônus</p>
-            <p className="text-2xl font-bold text-success">{formatCurrency(totalBonus)}</p>
+          <div className="bg-card rounded-xl p-4 border border-border shadow-sm">
+            <p className="text-xs text-muted-foreground">Bônus</p>
+            <p className="text-2xl font-bold text-success">{formatCurrency(totals.bonus)}</p>
           </div>
-          <div className="bg-card rounded-xl p-4 shadow-card border border-border">
-            <p className="text-xs text-muted-foreground">Total Descontos</p>
-            <p className="text-2xl font-bold text-muted-foreground">{formatCurrency(totalDescontos)}</p>
+          <div className="bg-card rounded-xl p-4 border border-border shadow-sm">
+            <p className="text-xs text-muted-foreground">Descontos</p>
+            <p className="text-2xl font-bold text-muted-foreground">{formatCurrency(totals.descontos)}</p>
           </div>
         </div>
 
         {isLoading ? (
           <div className="flex justify-center py-12"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
         ) : (
-          <div className="bg-card rounded-2xl shadow-card overflow-hidden">
+          <div className="bg-card rounded-xl shadow-sm border border-border overflow-hidden">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Colaborador</TableHead>
+                  <TableHead>Nome</TableHead>
                   <TableHead>Tipo</TableHead>
                   <TableHead className="text-right">Valor/Qtd</TableHead>
-                  <TableHead className="hidden md:table-cell">Descrição</TableHead>
-                  {canDelete && <TableHead>Ações</TableHead>}
+                  {canDelete && <TableHead className="w-10"></TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -283,11 +286,8 @@ const Lancamentos = () => {
                       </Badge>
                     </TableCell>
                     <TableCell className={`text-right tabular-nums font-semibold ${tx.transaction_type === 'vale' || tx.transaction_type === 'desconto' ? 'text-destructive' : 'text-success'}`}>
-                      {tx.transaction_type === 'adicional_noturno' 
-                        ? `${tx.hours_quantity}h` 
-                        : (tx.transaction_type === 'vale' || tx.transaction_type === 'desconto' ? '- ' : '+ ') + formatCurrency(tx.amount)}
+                      {tx.transaction_type === 'adicional_noturno' ? `${tx.hours_quantity}h` : formatCurrency(tx.amount)}
                     </TableCell>
-                    <TableCell className="hidden md:table-cell text-muted-foreground">{tx.description || '-'}</TableCell>
                     {canDelete && (
                       <TableCell>
                         <Button variant="ghost" size="icon" onClick={() => handleDelete(tx.id)}>
