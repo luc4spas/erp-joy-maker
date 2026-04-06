@@ -91,26 +91,23 @@ function parseExcelDate(value: any): string | null {
 function parseExcelTime(value: any): { hours: number; minutes: number } | null {
   if (!value) return null;
   if (typeof value === 'string') {
+    // Format: "18/01/2026 23:48:24" or just "23:48:24"
     const timeMatch = value.match(/(\d{1,2}):(\d{2})(?::(\d{2}))?/);
     if (timeMatch) {
       return { hours: parseInt(timeMatch[1], 10), minutes: parseInt(timeMatch[2], 10) };
     }
   }
   if (typeof value === 'number') {
+    // Excel serial date includes time as fractional part
     const date = XLSX.SSF.parse_date_code(value);
     return { hours: date.H || 0, minutes: date.M || 0 };
   }
   return null;
 }
 
-function getDayOfWeek(dateStr: string): number {
-  const date = new Date(dateStr + 'T12:00:00');
-  return date.getDay();
-}
-
 function isHippocampusTime(time: { hours: number; minutes: number }): boolean {
   const totalMinutes = time.hours * 60 + time.minutes;
-  const start = 11 * 60 + 30; // 11:30
+  const start = 11 * 60; // 11:00
   const end = 18 * 60; // 18:00
   return totalMinutes >= start && totalMinutes <= end;
 }
@@ -135,6 +132,17 @@ export function parseFile(file: File): Promise<any[]> {
   });
 }
 
+function createEmptySummary(restaurante: 'TRATTORIA' | 'JAPA' | 'HIPPOCAMPUS'): RestaurantSummary {
+  return {
+    restaurante,
+    totalValor: 0,
+    totalAcrescimo: 0,
+    totalGeral: 0,
+    comissaoGarcom: 0,
+    porFormaPagamento: {},
+  };
+}
+
 export function processData(rawData: any[]): DashboardData {
   if (!rawData.length) throw new Error('Arquivo vazio');
 
@@ -154,7 +162,8 @@ export function processData(rawData: any[]): DashboardData {
     }
   }
 
-  const isSunday = dataRelatorio ? getDayOfWeek(dataRelatorio) === 0 : false;
+
+
 
   let lastTipovenda = '';
   const filledData = rawData.map((row: any) => {
@@ -176,7 +185,8 @@ export function processData(rawData: any[]): DashboardData {
       const tableNumber = extractTableNumber(row.tipovenda);
       let restaurante: 'TRATTORIA' | 'JAPA' | 'HIPPOCAMPUS' = tableNumber ? classifyRestaurant(tableNumber) : 'TRATTORIA';
 
-      if (isSunday && row.time && isHippocampusTime(row.time)) {
+      // Hippocampus rule: any day between 11:00 and 18:00
+      if (row.time && isHippocampusTime(row.time)) {
         restaurante = 'HIPPOCAMPUS';
       }
 
@@ -203,6 +213,7 @@ export function processData(rawData: any[]): DashboardData {
       porFormaPagamento[row.formaPagamento].frValor += row.frValor;
     });
 
+    // Subtrair TROCO do DINHEIRO
     if (porFormaPagamento['TROCO'] && porFormaPagamento['DINHEIRO']) {
       porFormaPagamento['DINHEIRO'].frValor += porFormaPagamento['TROCO'].frValor;
       delete porFormaPagamento['TROCO'];
@@ -211,17 +222,14 @@ export function processData(rawData: any[]): DashboardData {
     }
 
     const totalValor = rows.reduce((sum, r) => sum + r.valor, 0);
-    const totalAcrescimo = rows.reduce((sum, r) => sum + r.acrescimo, 0);
     const totalGeral = Object.values(porFormaPagamento).reduce((sum, p) => sum + p.frValor, 0);
     
     return {
       restaurante,
       totalValor,
-      totalAcrescimo,
+      totalAcrescimo: rows.reduce((sum, r) => sum + r.acrescimo, 0),
       totalGeral,
-      // CORREÇÃO: A comissão de 8% deve ser 80% do valor arrecadado de 10%.
-      // Isso garante que se a taxa foi R$ 64,50, a comissão seja R$ 51,60.
-      comissaoGarcom: totalAcrescimo * 0.8,
+      comissaoGarcom: totalValor * 0.08,
       porFormaPagamento,
     };
   };
@@ -231,6 +239,7 @@ export function processData(rawData: any[]): DashboardData {
   const hippocampus = createSummary('HIPPOCAMPUS');
   const hasHippocampus = processedRows.some(r => r.restaurante === 'HIPPOCAMPUS');
 
+  // Total dinheiro across all units
   const totalDinheiro = 
     (trattoria.porFormaPagamento['DINHEIRO']?.frValor || 0) +
     (japa.porFormaPagamento['DINHEIRO']?.frValor || 0) +
