@@ -10,10 +10,15 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
-import { Loader2, Plus, Trash2, Edit2, Users } from 'lucide-react';
+import { Loader2, Plus, Trash2, Edit2, Users, CalendarIcon } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
+import { cn } from '@/lib/utils';
+import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 
 interface Funcionario {
   id: string;
@@ -21,6 +26,8 @@ interface Funcionario {
   setor: 'Garçom' | 'Cozinha' | 'Administrativo';
   frente: 'Japa' | 'Trattoria' | 'Ambas';
   ativo: boolean;
+  birth_date: string | null;
+  base_salary: number;
 }
 
 const getSetorDisplay = (setor: string): string => {
@@ -45,8 +52,8 @@ const Funcionarios = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [form, setForm] = useState<{ nome: string; setor: 'Garçom' | 'Cozinha' | 'Administrativo'; frente: 'Japa' | 'Trattoria' | 'Ambas'; ativo: boolean }>({ 
-    nome: '', setor: 'Garçom', frente: 'Ambas', ativo: true 
+  const [form, setForm] = useState<{ nome: string; setor: 'Garçom' | 'Cozinha' | 'Administrativo'; frente: 'Japa' | 'Trattoria' | 'Ambas'; ativo: boolean; birth_date: Date | undefined; base_salary: string }>({ 
+    nome: '', setor: 'Garçom', frente: 'Ambas', ativo: true, birth_date: undefined, base_salary: ''
   });
   
   const navigate = useNavigate();
