@@ -18,8 +18,9 @@ import {
   Building2,
   Truck,
   Shield,
-  ChevronDown,
-  UserCog
+  UserCog,
+  Wallet,
+  ClipboardList,
 } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
@@ -47,6 +48,8 @@ const navItems: NavItem[] = [
   { path: '/rateio', label: 'Rateio Semanal', icon: DollarSign, module: 'financeiro' },
   { path: '/contas-pagar', label: 'Contas a Pagar', icon: FileText, module: 'contas_pagar' },
   { path: '/fornecedores', label: 'Fornecedores', icon: Truck, module: 'contas_pagar' },
+  { path: '/lancamentos', label: 'Lançamentos', icon: Wallet, module: 'folha_pagamento' },
+  { path: '/fechamento-folha', label: 'Fechamento Folha', icon: ClipboardList, module: 'folha_pagamento' },
   { path: '/empresas', label: 'Empresas', icon: Building2, module: 'administracao' },
   { path: '/grupos-acesso', label: 'Grupos de Acesso', icon: Shield, module: 'administracao' },
   { path: '/usuarios', label: 'Usuários', icon: UserCog, module: 'administracao' },

@@ -2,7 +2,7 @@ import { useState, useEffect, createContext, useContext, ReactNode, useCallback 
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 
-export type ModuleName = 'financeiro' | 'colaboradores' | 'administracao' | 'upload' | 'contas_pagar';
+export type ModuleName = 'financeiro' | 'colaboradores' | 'administracao' | 'upload' | 'contas_pagar' | 'folha_pagamento';
 export type ActionType = 'read' | 'create' | 'edit' | 'delete';
 
 interface Permission {
