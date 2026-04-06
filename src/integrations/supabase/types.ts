@@ -269,6 +269,8 @@ export type Database = {
       funcionarios: {
         Row: {
           ativo: boolean
+          base_salary: number
+          birth_date: string | null
           created_at: string
           frente: Database["public"]["Enums"]["frente_tipo"]
           id: string
@@ -279,6 +281,8 @@ export type Database = {
         }
         Insert: {
           ativo?: boolean
+          base_salary?: number
+          birth_date?: string | null
           created_at?: string
           frente?: Database["public"]["Enums"]["frente_tipo"]
           id?: string
@@ -289,6 +293,8 @@ export type Database = {
         }
         Update: {
           ativo?: boolean
+          base_salary?: number
+          birth_date?: string | null
           created_at?: string
           frente?: Database["public"]["Enums"]["frente_tipo"]
           id?: string
@@ -438,6 +444,47 @@ export type Database = {
           },
         ]
       }
+      payroll_transactions: {
+        Row: {
+          amount: number
+          created_at: string
+          description: string | null
+          employee_id: string
+          id: string
+          reference_month: string
+          transaction_type: Database["public"]["Enums"]["payroll_transaction_type"]
+          user_id: string
+        }
+        Insert: {
+          amount?: number
+          created_at?: string
+          description?: string | null
+          employee_id: string
+          id?: string
+          reference_month: string
+          transaction_type: Database["public"]["Enums"]["payroll_transaction_type"]
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          description?: string | null
+          employee_id?: string
+          id?: string
+          reference_month?: string
+          transaction_type?: Database["public"]["Enums"]["payroll_transaction_type"]
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payroll_transactions_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "funcionarios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           ativo: boolean
@@ -514,6 +561,7 @@ export type Database = {
     Enums: {
       conta_status: "pendente" | "pago" | "atrasado"
       frente_tipo: "Japa" | "Trattoria" | "Ambas"
+      payroll_transaction_type: "vale" | "bonus" | "desconto"
       setor_tipo: "Garçom" | "Cozinha" | "Administrativo"
     }
     CompositeTypes: {
@@ -644,6 +692,7 @@ export const Constants = {
     Enums: {
       conta_status: ["pendente", "pago", "atrasado"],
       frente_tipo: ["Japa", "Trattoria", "Ambas"],
+      payroll_transaction_type: ["vale", "bonus", "desconto"],
       setor_tipo: ["Garçom", "Cozinha", "Administrativo"],
     },
   },
