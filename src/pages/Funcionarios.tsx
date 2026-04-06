@@ -19,6 +19,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { formatCurrency } from '@/lib/processData';
 
 interface Funcionario {
   id: string;
@@ -30,20 +31,17 @@ interface Funcionario {
   base_salary: number;
 }
 
-const getSetorDisplay = (setor: string): string => {
-  if (setor === 'Administrativo') return 'Caixa/Adm/Cumins';
-  return setor;
+const defaultForm = { nome: '', setor: 'Garçom' as const, frente: 'Ambas' as const, ativo: true, birth_date: undefined as Date | undefined, base_salary: '' };
+
+const getSetorCompleto = (f: Funcionario): string => {
+  if (f.setor === 'Administrativo') return 'CAIXA/ADM/CUMINS';
+  if (f.frente === 'Ambas') return `${f.setor.toUpperCase()} (AMBAS)`;
+  return `${f.setor.toUpperCase()} ${f.frente.toUpperCase()}`;
 };
 
-const getSetorCompleto = (funcionario: Funcionario): string => {
-  if (funcionario.setor === 'Administrativo') return 'CAIXA/ADM/CUMINS';
-  if (funcionario.frente === 'Ambas') return `${funcionario.setor.toUpperCase()} (AMBAS)`;
-  return `${funcionario.setor.toUpperCase()} ${funcionario.frente.toUpperCase()}`;
-};
-
-const getSetorColorClass = (funcionario: Funcionario): string => {
-  if (funcionario.setor === 'Administrativo') return 'bg-commission-light text-commission-foreground';
-  if (funcionario.frente === 'Japa' || funcionario.frente === 'Ambas') return 'bg-japa-light text-japa-foreground';
+const getSetorColorClass = (f: Funcionario): string => {
+  if (f.setor === 'Administrativo') return 'bg-commission-light text-commission-foreground';
+  if (f.frente === 'Japa' || f.frente === 'Ambas') return 'bg-japa-light text-japa-foreground';
   return 'bg-trattoria-light text-trattoria-foreground';
 };
 
@@ -52,9 +50,7 @@ const Funcionarios = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [form, setForm] = useState<{ nome: string; setor: 'Garçom' | 'Cozinha' | 'Administrativo'; frente: 'Japa' | 'Trattoria' | 'Ambas'; ativo: boolean; birth_date: Date | undefined; base_salary: string }>({ 
-    nome: '', setor: 'Garçom', frente: 'Ambas', ativo: true, birth_date: undefined, base_salary: ''
-  });
+  const [form, setForm] = useState(defaultForm);
   
   const navigate = useNavigate();
   const { user, isLoading: authLoading } = useAuth();
@@ -78,19 +74,27 @@ const Funcionarios = () => {
 
   const handleSubmit = async () => {
     if (!user || !form.nome.trim()) return;
+    const payload = {
+      nome: form.nome,
+      setor: form.setor,
+      frente: form.frente,
+      ativo: form.ativo,
+      birth_date: form.birth_date ? format(form.birth_date, 'yyyy-MM-dd') : null,
+      base_salary: form.base_salary ? parseFloat(form.base_salary.replace(',', '.')) : 0,
+    };
     try {
       if (editingId) {
-        const { error } = await supabase.from('funcionarios').update({ nome: form.nome, setor: form.setor, frente: form.frente, ativo: form.ativo }).eq('id', editingId);
+        const { error } = await supabase.from('funcionarios').update(payload).eq('id', editingId);
         if (error) throw error;
         toast({ title: 'Atualizado!' });
       } else {
-        const { error } = await supabase.from('funcionarios').insert({ user_id: user.id, nome: form.nome, setor: form.setor, frente: form.frente, ativo: form.ativo });
+        const { error } = await supabase.from('funcionarios').insert({ ...payload, user_id: user.id });
         if (error) throw error;
         toast({ title: 'Colaborador adicionado!' });
       }
       setDialogOpen(false);
       setEditingId(null);
-      setForm({ nome: '', setor: 'Garçom', frente: 'Ambas', ativo: true });
+      setForm(defaultForm);
       fetchFuncionarios();
     } catch (e: any) {
       toast({ title: 'Erro', description: e.message, variant: 'destructive' });
@@ -105,93 +109,101 @@ const Funcionarios = () => {
 
   const openEdit = (f: Funcionario) => {
     setEditingId(f.id);
-    setForm({ nome: f.nome, setor: f.setor, frente: f.frente, ativo: f.ativo });
+    setForm({
+      nome: f.nome,
+      setor: f.setor,
+      frente: f.frente,
+      ativo: f.ativo,
+      birth_date: f.birth_date ? new Date(f.birth_date + 'T12:00:00') : undefined,
+      base_salary: f.base_salary ? String(f.base_salary) : '',
+    });
     setDialogOpen(true);
   };
 
+  const resetForm = () => { setEditingId(null); setForm(defaultForm); };
+
   if (authLoading) return <div className="min-h-screen flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
   if (!user) return null;
+
+  const formFields = (
+    <div className="space-y-4 py-4">
+      <div><Label>Nome</Label><Input value={form.nome} onChange={(e) => setForm({ ...form, nome: e.target.value })} placeholder="Nome do colaborador" /></div>
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <Label>Setor</Label>
+          <Select value={form.setor} onValueChange={(v: any) => setForm({ ...form, setor: v })}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="Garçom">Garçom</SelectItem>
+              <SelectItem value="Cozinha">Cozinha</SelectItem>
+              <SelectItem value="Administrativo">Caixa/Adm/Cumins</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div>
+          <Label>Frente</Label>
+          <Select value={form.frente} onValueChange={(v: any) => setForm({ ...form, frente: v })} disabled={form.setor === 'Administrativo'}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="Japa">Japa</SelectItem>
+              <SelectItem value="Trattoria">Trattoria</SelectItem>
+              <SelectItem value="Ambas">Ambas</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <Label>Salário Base (R$)</Label>
+          <Input
+            type="number"
+            step="0.01"
+            min="0"
+            value={form.base_salary}
+            onChange={(e) => setForm({ ...form, base_salary: e.target.value })}
+            placeholder="0,00"
+          />
+        </div>
+        <div>
+          <Label>Data de Aniversário</Label>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !form.birth_date && "text-muted-foreground")}>
+                <CalendarIcon className="mr-2 h-4 w-4" />
+                {form.birth_date ? format(form.birth_date, "dd/MM/yyyy") : "Selecionar"}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+              <Calendar mode="single" selected={form.birth_date} onSelect={(d) => setForm({ ...form, birth_date: d })} initialFocus className="p-3 pointer-events-auto" locale={ptBR} />
+            </PopoverContent>
+          </Popover>
+        </div>
+      </div>
+      <div className="flex items-center gap-2"><Switch checked={form.ativo} onCheckedChange={(c) => setForm({ ...form, ativo: c })} /><Label>Ativo</Label></div>
+      <Button onClick={handleSubmit} className="w-full">{editingId ? 'Salvar' : 'Adicionar'}</Button>
+    </div>
+  );
 
   return (
     <AppLayout title="Colaboradores" subtitle="Cadastre e gerencie a equipe">
       <div className="space-y-6">
         {canCreate && (
-          <Dialog 
-            open={dialogOpen} 
-            onOpenChange={(o) => { 
-              setDialogOpen(o); 
-              if (!o) { setEditingId(null); setForm({ nome: '', setor: 'Garçom', frente: 'Ambas', ativo: true }); } 
-            }}
-          >
+          <Dialog open={dialogOpen} onOpenChange={(o) => { setDialogOpen(o); if (!o) resetForm(); }}>
             <DialogTrigger asChild>
               <Button className="gap-2"><Plus className="w-4 h-4" />Novo Colaborador</Button>
             </DialogTrigger>
             <DialogContent>
               <DialogHeader><DialogTitle>{editingId ? 'Editar' : 'Novo'} Colaborador</DialogTitle></DialogHeader>
-              <div className="space-y-4 py-4">
-                <div><Label>Nome</Label><Input value={form.nome} onChange={(e) => setForm({ ...form, nome: e.target.value })} placeholder="Nome do colaborador" /></div>
-                <div>
-                  <Label>Setor</Label>
-                  <Select value={form.setor} onValueChange={(v: 'Garçom' | 'Cozinha' | 'Administrativo') => setForm({ ...form, setor: v })}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Garçom">Garçom</SelectItem>
-                      <SelectItem value="Cozinha">Cozinha</SelectItem>
-                      <SelectItem value="Administrativo">Caixa/Adm/Cumins</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label>Frente</Label>
-                  <Select value={form.frente} onValueChange={(v: 'Japa' | 'Trattoria' | 'Ambas') => setForm({ ...form, frente: v })} disabled={form.setor === 'Administrativo'}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Japa">Japa</SelectItem>
-                      <SelectItem value="Trattoria">Trattoria</SelectItem>
-                      <SelectItem value="Ambas">Ambas</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  {form.setor === 'Administrativo' && <p className="text-xs text-muted-foreground mt-1">Caixa/Adm/Cumins recebe de ambas as frentes automaticamente.</p>}
-                </div>
-                <div className="flex items-center gap-2"><Switch checked={form.ativo} onCheckedChange={(c) => setForm({ ...form, ativo: c })} /><Label>Ativo</Label></div>
-                <Button onClick={handleSubmit} className="w-full">{editingId ? 'Salvar' : 'Adicionar'}</Button>
-              </div>
+              {formFields}
             </DialogContent>
           </Dialog>
         )}
 
-        {/* Edit dialog when user can edit but not create (dialog not attached to trigger) */}
         {!canCreate && canEdit && (
-          <Dialog open={dialogOpen} onOpenChange={(o) => { setDialogOpen(o); if (!o) { setEditingId(null); setForm({ nome: '', setor: 'Garçom', frente: 'Ambas', ativo: true }); } }}>
+          <Dialog open={dialogOpen} onOpenChange={(o) => { setDialogOpen(o); if (!o) resetForm(); }}>
             <DialogContent>
               <DialogHeader><DialogTitle>Editar Colaborador</DialogTitle></DialogHeader>
-              <div className="space-y-4 py-4">
-                <div><Label>Nome</Label><Input value={form.nome} onChange={(e) => setForm({ ...form, nome: e.target.value })} placeholder="Nome do colaborador" /></div>
-                <div>
-                  <Label>Setor</Label>
-                  <Select value={form.setor} onValueChange={(v: 'Garçom' | 'Cozinha' | 'Administrativo') => setForm({ ...form, setor: v })}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Garçom">Garçom</SelectItem>
-                      <SelectItem value="Cozinha">Cozinha</SelectItem>
-                      <SelectItem value="Administrativo">Caixa/Adm/Cumins</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label>Frente</Label>
-                  <Select value={form.frente} onValueChange={(v: 'Japa' | 'Trattoria' | 'Ambas') => setForm({ ...form, frente: v })} disabled={form.setor === 'Administrativo'}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Japa">Japa</SelectItem>
-                      <SelectItem value="Trattoria">Trattoria</SelectItem>
-                      <SelectItem value="Ambas">Ambas</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="flex items-center gap-2"><Switch checked={form.ativo} onCheckedChange={(c) => setForm({ ...form, ativo: c })} /><Label>Ativo</Label></div>
-                <Button onClick={handleSubmit} className="w-full">Salvar</Button>
-              </div>
+              {formFields}
             </DialogContent>
           </Dialog>
         )}
@@ -210,6 +222,7 @@ const Funcionarios = () => {
                 <TableRow>
                   <TableHead>Nome</TableHead>
                   <TableHead>Setor</TableHead>
+                  <TableHead className="hidden md:table-cell">Salário Base</TableHead>
                   <TableHead>Status</TableHead>
                   {(canEdit || canDelete) && <TableHead>Ações</TableHead>}
                 </TableRow>
@@ -220,6 +233,9 @@ const Funcionarios = () => {
                     <TableCell className="font-medium">{f.nome}</TableCell>
                     <TableCell>
                       <Badge variant="secondary" className={getSetorColorClass(f)}>{getSetorCompleto(f)}</Badge>
+                    </TableCell>
+                    <TableCell className="hidden md:table-cell tabular-nums">
+                      {f.base_salary > 0 ? formatCurrency(f.base_salary) : <span className="text-muted-foreground">-</span>}
                     </TableCell>
                     <TableCell>
                       {f.ativo ? <Badge variant="default" className="bg-success text-primary-foreground">Ativo</Badge> : <Badge variant="secondary">Inativo</Badge>}
