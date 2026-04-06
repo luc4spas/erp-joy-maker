@@ -10,11 +10,13 @@ import { Button } from '@/components/ui/button';
 import { Loader2, Printer, DollarSign, Users, Check, Clock, ChevronLeft, ChevronRight, Calendar } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { format, startOfWeek, endOfWeek, addWeeks, subWeeks } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { SectorTotalsSummary } from '@/components/rateio/SectorTotalsSummary';
 import { CommissionInputSummary } from '@/components/rateio/CommissionInputSummary';
 import { SectorDistributionTable } from '@/components/rateio/SectorDistributionTable';
+import { RateioMensal } from '@/components/rateio/RateioMensal';
 
 interface Funcionario {
   id: string;
