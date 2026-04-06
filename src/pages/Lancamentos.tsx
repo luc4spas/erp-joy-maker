@@ -9,10 +9,11 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2, Plus, Trash2, ChevronLeft, ChevronRight, Calendar, DollarSign, Upload } from 'lucide-react';
+import { Loader2, Plus, Trash2, ChevronLeft, ChevronRight, Calendar, Upload, Check, AlertCircle } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { format, startOfMonth, addMonths, subMonths } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { formatCurrency } from '@/lib/processData';
@@ -38,25 +39,22 @@ interface Transaction {
   funcionario?: Funcionario;
 }
 
-const typeLabels: Record<string, string> = { 
-  vale: 'Vale', 
-  bonus: 'Bônus', 
-  desconto: 'Desconto',
-  adicional_noturno: 'Adicional Noturno'
-};
-
-const typeColors: Record<string, string> = {
-  vale: 'bg-destructive/10 text-destructive',
-  bonus: 'bg-success/20 text-success',
-  desconto: 'bg-muted text-muted-foreground',
-  adicional_noturno: 'bg-blue-500/10 text-blue-600',
-};
+interface ImportPreview {
+  nomePlanilha: string;
+  funcionarioId?: string;
+  funcionarioNome?: string;
+  horas: number;
+  status: 'sucesso' | 'erro';
+}
 
 const Lancamentos = () => {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [funcionarios, setFuncionarios] = useState<Funcionario[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [importPreview, setImportPreview] = useState<ImportPreview[]>([]);
+  const [isSavingImport, setIsSavingImport] = useState(false);
   const [monthStart, setMonthStart] = useState(() => startOfMonth(new Date()));
   const [form, setForm] = useState({ 
     employee_id: '', 
@@ -91,52 +89,82 @@ const Lancamentos = () => {
     setIsLoading(false);
   };
 
-  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onload = async (e) => {
+    reader.onload = (e) => {
       try {
         const data = new Uint8Array(e.target?.result as ArrayBuffer);
         const workbook = XLSX.read(data, { type: 'array' });
         const worksheet = workbook.Sheets[workbook.SheetNames[0]];
         const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[][];
 
-        const refMonth = format(monthStart, 'yyyy-MM-dd');
-        let count = 0;
+        const normalize = (txt: string) => 
+          txt.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().trim();
+
+        const previewData: ImportPreview[] = [];
 
         for (const row of jsonData.slice(1)) {
-          const nomePlanilha = row[0]?.toString().trim();
+          const nomeBruto = row[0]?.toString() || "";
+          const nomePlanilhaNorm = normalize(nomeBruto);
           const valorNoturnoRaw = row[11];
           const horas = typeof valorNoturnoRaw === 'string' 
             ? parseFloat(valorNoturnoRaw.replace(',', '.')) 
             : parseFloat(valorNoturnoRaw) || 0;
 
-          if (horas > 0 && nomePlanilha) {
-            const func = funcionarios.find(f => f.nome.trim().toUpperCase() === nomePlanilha.toUpperCase());
-            if (func) {
-              await supabase.from('payroll_transactions').insert({
-                user_id: user?.id,
-                employee_id: func.id,
-                transaction_type: 'adicional_noturno',
-                hours_quantity: horas,
-                amount: 0,
-                reference_month: refMonth,
-                description: 'Importado via Excel (Ponto)'
-              });
-              count++;
-            }
+          if (horas > 0 && nomeBruto) {
+            const func = funcionarios.find(f => {
+              const nomeSistema = normalize(f.nome);
+              return nomePlanilhaNorm.includes(nomeSistema) || nomeSistema.includes(nomePlanilhaNorm);
+            });
+
+            previewData.push({
+              nomePlanilha: nomeBruto,
+              funcionarioId: func?.id,
+              funcionarioNome: func?.nome,
+              horas: horas,
+              status: func ? 'sucesso' : 'erro'
+            });
           }
         }
-        toast({ title: "Sucesso", description: `${count} lançamentos importados!` });
-        fetchData();
+
+        setImportPreview(previewData);
+        setPreviewOpen(true);
       } catch (err) {
         toast({ variant: "destructive", title: "Erro ao ler Excel" });
       }
     };
     reader.readAsArrayBuffer(file);
     event.target.value = '';
+  };
+
+  const confirmImport = async () => {
+    setIsSavingImport(true);
+    const refMonth = format(monthStart, 'yyyy-MM-dd');
+    const validImports = importPreview.filter(p => p.status === 'sucesso');
+
+    try {
+      for (const item of validImports) {
+        await supabase.from('payroll_transactions').insert({
+          user_id: user?.id,
+          employee_id: item.funcionarioId,
+          transaction_type: 'adicional_noturno',
+          hours_quantity: item.horas,
+          amount: 0,
+          reference_month: refMonth,
+          description: 'Importação via Excel'
+        });
+      }
+      toast({ title: "Sucesso", description: `${validImports.length} lançamentos salvos!` });
+      setPreviewOpen(false);
+      fetchData();
+    } catch (err) {
+      toast({ variant: "destructive", title: "Erro ao salvar importação" });
+    } finally {
+      setIsSavingImport(false);
+    }
   };
 
   const handleSubmit = async () => {
@@ -203,8 +231,60 @@ const Lancamentos = () => {
               <>
                 <Button variant="outline" className="relative cursor-pointer">
                   <Upload className="w-4 h-4 mr-2" /> Importar Excel
-                  <input type="file" className="absolute inset-0 opacity-0 cursor-pointer" accept=".xlsx, .xls" onChange={handleFileUpload} />
+                  <input type="file" className="absolute inset-0 opacity-0 cursor-pointer" accept=".xlsx, .xls" onChange={handleFileSelect} />
                 </Button>
+                
+                {/* Modal de Conferência */}
+                <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
+                  <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col">
+                    <DialogHeader>
+                      <DialogTitle>Conferir Importação ({mesAnoLabel})</DialogTitle>
+                    </DialogHeader>
+                    <ScrollArea className="flex-1 my-4 border rounded-md p-2">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Nome na Planilha</TableHead>
+                            <TableHead>No Sistema</TableHead>
+                            <TableHead className="text-right">Horas</TableHead>
+                            <TableHead className="w-10"></TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {importPreview.map((item, idx) => (
+                            <TableRow key={idx} className={item.status === 'erro' ? 'bg-destructive/5' : ''}>
+                              <TableCell className="text-sm">{item.nomePlanilha}</TableCell>
+                              <TableCell className="text-sm font-medium">
+                                {item.funcionarioNome || <span className="text-destructive flex items-center gap-1"><AlertCircle className="w-3 h-3" /> Não encontrado</span>}
+                              </TableCell>
+                              <TableCell className="text-right font-mono">{item.horas}h</TableCell>
+                              <TableCell>
+                                {item.status === 'sucesso' ? <Check className="w-4 h-4 text-success" /> : <AlertCircle className="w-4 h-4 text-destructive" />}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </ScrollArea>
+                    <div className="bg-muted/30 p-3 rounded-lg text-sm mb-4">
+                      <p><strong>Total lido:</strong> {importPreview.length} registros</p>
+                      <p className="text-success"><strong>Prontos para salvar:</strong> {importPreview.filter(p => p.status === 'sucesso').length}</p>
+                      <p className="text-destructive"><strong>Inconsistentes:</strong> {importPreview.filter(p => p.status === 'erro').length}</p>
+                    </div>
+                    <DialogFooter>
+                      <Button variant="ghost" onClick={() => setPreviewOpen(false)}>Cancelar</Button>
+                      <Button 
+                        onClick={confirmImport} 
+                        disabled={isSavingImport || importPreview.filter(p => p.status === 'sucesso').length === 0}
+                      >
+                        {isSavingImport ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Check className="w-4 h-4 mr-2" />}
+                        Confirmar e Salvar no Banco
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+
+                {/* Modal de Lançamento Manual */}
                 <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
                   <DialogTrigger asChild>
                     <Button className="gap-2"><Plus className="w-4 h-4" /> Novo</Button>
@@ -248,6 +328,7 @@ const Lancamentos = () => {
           </div>
         </div>
 
+        {/* Cards de Totais */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div className="bg-card rounded-xl p-4 border border-border shadow-sm">
             <p className="text-xs text-muted-foreground">Vales</p>
@@ -263,6 +344,7 @@ const Lancamentos = () => {
           </div>
         </div>
 
+        {/* Tabela de Lançamentos */}
         {isLoading ? (
           <div className="flex justify-center py-12"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
         ) : (
