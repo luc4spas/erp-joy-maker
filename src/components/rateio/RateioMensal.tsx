@@ -51,7 +51,7 @@ export const RateioMensal = () => {
   const fetchMonthlyData = async () => {
     setIsLoading(true);
     
-    // 1. Definição do intervalo rígido: Dia 1 ao último dia do mês
+    // 1. Intervalo rígido do mês (Dia 1 ao último dia)
     const start = startOfMonth(monthStart);
     const end = endOfMonth(monthStart);
 
@@ -73,7 +73,7 @@ export const RateioMensal = () => {
       return;
     }
 
-    // 2. Cálculo das fatias semanais (limitadas ao mês)
+    // 2. Divisão de semanas respeitando os limites do mês selecionado
     const colunasSemanas: { inicio: Date; fim: Date }[] = [];
     let current = new Date(start);
     while (isBefore(current, end)) {
@@ -96,6 +96,7 @@ export const RateioMensal = () => {
 
     colunasSemanas.forEach(semana => {
       const fechsDaSemana = fechs.filter(f => {
+        // Correção de fuso horário para garantir comparação correta
         const dataF = new Date(f.data.replace(/-/g, '\/'));
         return dataF >= semana.inicio && dataF <= semana.fim;
       });
@@ -149,7 +150,7 @@ export const RateioMensal = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header original com navegação */}
+      {/* Design de Header Original */}
       <div className="bg-card rounded-xl p-4 shadow-card border border-border flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <Button variant="outline" size="icon" onClick={() => setMonthStart(subMonths(monthStart, 1))}>
@@ -177,23 +178,24 @@ export const RateioMensal = () => {
           <Loader2 className="w-8 h-8 animate-spin text-primary" />
         </div>
       ) : (
+        /* Design de Tabela de Colaboradores conforme original */
         <div className="bg-card rounded-xl shadow-card border border-border overflow-hidden">
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Colaborador</TableHead>
-                <TableHead>Setor / Frente</TableHead>
-                <TableHead className="text-right text-japa">Japa</TableHead>
-                <TableHead className="text-right text-trattoria">Trattoria</TableHead>
-                <TableHead className="text-right font-bold">Total Mês</TableHead>
+                <TableHead className="font-bold">Colaborador</TableHead>
+                <TableHead className="font-bold">Setor / Frente</TableHead>
+                <TableHead className="text-right text-japa font-bold">Japa</TableHead>
+                <TableHead className="text-right text-trattoria font-bold">Trattoria</TableHead>
+                <TableHead className="text-right font-bold text-primary">Total Mês</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {rateioMensal.map((r) => (
-                <TableRow key={r.funcionario.id}>
+                <TableRow key={r.funcionario.id} className="hover:bg-muted/50 transition-colors">
                   <TableCell>
-                    <div className="font-bold">{r.funcionario.nome}</div>
-                    <div className="text-[10px] text-muted-foreground uppercase">{r.semanas.length} semana(s) ativa(s)</div>
+                    <div className="font-bold text-sm">{r.funcionario.nome}</div>
+                    <div className="text-[10px] text-muted-foreground uppercase">{r.semanas.length} períodos ativos</div>
                   </TableCell>
                   <TableCell>
                     <Badge variant="outline" className={`text-[10px] font-bold ${
@@ -206,10 +208,10 @@ export const RateioMensal = () => {
                         : `${r.funcionario.setor.toUpperCase()} ${r.funcionario.frente.toUpperCase()}`}
                     </Badge>
                   </TableCell>
-                  <TableCell className="text-right text-xs text-japa-foreground">
+                  <TableCell className="text-right text-xs text-japa-foreground font-medium">
                     {r.valorJapa > 0 ? formatCurrency(r.valorJapa) : '-'}
                   </TableCell>
-                  <TableCell className="text-right text-xs text-trattoria-foreground">
+                  <TableCell className="text-right text-xs text-trattoria-foreground font-medium">
                     {r.valorTrattoria > 0 ? formatCurrency(r.valorTrattoria) : '-'}
                   </TableCell>
                   <TableCell className="text-right">
