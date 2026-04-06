@@ -27,6 +27,8 @@ interface PayrollRow {
   totalBonus: number;
   totalDescontos: number;
   comissao: number;
+  totalHorasNoturnas: number; // Novo campo
+  valorAdicionalNoturno: number; // Novo campo
   liquido: number;
 }
 
@@ -77,7 +79,6 @@ const FechamentoFolha = () => {
     const fechs = fechRes.data || [];
     const txs = (txRes.data || []) as any[];
 
-    // Calculate commissions per employee (same logic as RateioMensal)
     const comissaoMap = new Map<string, number>();
     funcs.forEach(f => comissaoMap.set(f.id, 0));
 
@@ -117,17 +118,37 @@ const FechamentoFolha = () => {
       if (aF.length) aF.forEach(f => add(f.id, adm / aF.length));
     });
 
-    // Build payroll rows
     const payrollRows: PayrollRow[] = funcs.map(f => {
       const empTxs = txs.filter(t => t.employee_id === f.id);
       const totalVales = empTxs.filter(t => t.transaction_type === 'vale').reduce((s: number, t: any) => s + Number(t.amount), 0);
       const totalBonus = empTxs.filter(t => t.transaction_type === 'bonus').reduce((s: number, t: any) => s + Number(t.amount), 0);
       const totalDescontos = empTxs.filter(t => t.transaction_type === 'desconto').reduce((s: number, t: any) => s + Number(t.amount), 0);
+      
+      // Novo: Cálculo de Adicional Noturno
+      const empNoturno = empTxs.filter(t => t.transaction_type === 'adicional_noturno');
+      const totalHorasNoturnas = empNoturno.reduce((s: number, t: any) => s + Number(t.hours_quantity || 0), 0);
+      
       const comissao = comissaoMap.get(f.id) || 0;
       const salarioBase = Number(f.base_salary) || 0;
-      const liquido = salarioBase + totalBonus + comissao - totalVales - totalDescontos;
-      return { funcionario: f, salarioBase, totalVales, totalBonus, totalDescontos, comissao, liquido };
-    }).filter(r => r.salarioBase > 0 || r.totalVales > 0 || r.totalBonus > 0 || r.comissao > 0 || r.totalDescontos > 0);
+      
+      // Cálculo financeiro do adicional (Base 220h + 20% adicional)
+      const valorHoraBase = salarioBase / 220;
+      const valorAdicionalNoturno = totalHorasNoturnas * (valorHoraBase * 0.20);
+
+      const liquido = salarioBase + totalBonus + comissao + valorAdicionalNoturno - totalVales - totalDescontos;
+      
+      return { 
+        funcionario: f, 
+        salarioBase, 
+        totalVales, 
+        totalBonus, 
+        totalDescontos, 
+        comissao, 
+        totalHorasNoturnas, 
+        valorAdicionalNoturno, 
+        liquido 
+      };
+    }).filter(r => r.salarioBase > 0 || r.totalVales > 0 || r.totalBonus > 0 || r.comissao > 0 || r.totalDescontos > 0 || r.totalHorasNoturnas > 0);
 
     setRows(payrollRows);
     setIsLoading(false);
@@ -139,17 +160,18 @@ const FechamentoFolha = () => {
     bonus: acc.bonus + r.totalBonus,
     descontos: acc.descontos + r.totalDescontos,
     comissao: acc.comissao + r.comissao,
+    noturno: acc.noturno + r.valorAdicionalNoturno,
     liquido: acc.liquido + r.liquido,
-  }), { salario: 0, vales: 0, bonus: 0, descontos: 0, comissao: 0, liquido: 0 });
+  }), { salario: 0, vales: 0, bonus: 0, descontos: 0, comissao: 0, noturno: 0, liquido: 0 });
 
   const mesAnoLabel = format(monthStart, "MMMM 'de' yyyy", { locale: ptBR });
 
   const exportCSV = () => {
-    const header = 'Colaborador;Salário Base;Vales;Bônus;Descontos;Comissão;Valor Líquido\n';
+    const header = 'Colaborador;Salário Base;Vales;Bônus;Descontos;Comissão;Adic. Noturno (h);Adic. Noturno (R$);Valor Líquido\n';
     const body = rows.map(r =>
-      `${r.funcionario.nome};${r.salarioBase.toFixed(2)};${r.totalVales.toFixed(2)};${r.totalBonus.toFixed(2)};${r.totalDescontos.toFixed(2)};${r.comissao.toFixed(2)};${r.liquido.toFixed(2)}`
+      `${r.funcionario.nome};${r.salarioBase.toFixed(2)};${r.totalVales.toFixed(2)};${r.totalBonus.toFixed(2)};${r.totalDescontos.toFixed(2)};${r.comissao.toFixed(2)};${r.totalHorasNoturnas.toFixed(2)};${r.valorAdicionalNoturno.toFixed(2)};${r.liquido.toFixed(2)}`
     ).join('\n');
-    const totalLine = `\nTOTAL;${totals.salario.toFixed(2)};${totals.vales.toFixed(2)};${totals.bonus.toFixed(2)};${totals.descontos.toFixed(2)};${totals.comissao.toFixed(2)};${totals.liquido.toFixed(2)}`;
+    const totalLine = `\nTOTAL;${totals.salario.toFixed(2)};${totals.vales.toFixed(2)};${totals.bonus.toFixed(2)};${totals.descontos.toFixed(2)};${totals.comissao.toFixed(2)};;${totals.noturno.toFixed(2)};${totals.liquido.toFixed(2)}`;
     const blob = new Blob(['\uFEFF' + header + body + totalLine], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -165,18 +187,17 @@ const FechamentoFolha = () => {
     w.document.write(`
       <html><head><title>Fechamento de Folha - ${mesAnoLabel}</title>
       <style>
-        body { font-family: Arial, sans-serif; padding: 30px; max-width: 1100px; margin: 0 auto; color: #333; }
-        h1 { font-size: 20px; text-align: center; border-bottom: 2px solid #000; padding-bottom: 10px; }
-        .periodo { background: #f0f0f0; padding: 10px; border-radius: 5px; text-align: center; margin-bottom: 20px; }
-        table { width: 100%; border-collapse: collapse; font-size: 12px; }
-        th { background: #f5f5f5; padding: 8px; text-align: right; border-bottom: 2px solid #ddd; }
+        body { font-family: Arial, sans-serif; padding: 20px; color: #333; }
+        h1 { font-size: 18px; text-align: center; border-bottom: 2px solid #000; padding-bottom: 10px; }
+        .periodo { background: #f0f0f0; padding: 8px; text-align: center; margin-bottom: 15px; font-size: 14px; }
+        table { width: 100%; border-collapse: collapse; font-size: 10px; }
+        th { background: #f5f5f5; padding: 6px; text-align: right; border-bottom: 2px solid #ddd; }
         th:first-child { text-align: left; }
-        td { padding: 8px; border-bottom: 1px solid #eee; text-align: right; }
+        td { padding: 6px; border-bottom: 1px solid #eee; text-align: right; }
         td:first-child { text-align: left; font-weight: 600; }
         .text-red { color: #dc2626; }
         .text-green { color: #16a34a; }
         .total-row { background: #f0f7ff; font-weight: bold; border-top: 2px solid #333; }
-        @media print { body { padding: 15px; } }
       </style></head><body>
         <h1>FECHAMENTO DE FOLHA DE PAGAMENTO</h1>
         <div class="periodo"><strong>Referência:</strong> ${mesAnoLabel.charAt(0).toUpperCase() + mesAnoLabel.slice(1)}</div>
@@ -188,6 +209,7 @@ const FechamentoFolha = () => {
             <th>Bônus</th>
             <th>Descontos</th>
             <th>Comissão</th>
+            <th>Adic. Noturno</th>
             <th>Valor Líquido</th>
           </tr></thead>
           <tbody>
@@ -198,6 +220,7 @@ const FechamentoFolha = () => {
               <td class="text-green">${r.totalBonus > 0 ? formatCurrency(r.totalBonus) : '-'}</td>
               <td class="text-red">${r.totalDescontos > 0 ? '- ' + formatCurrency(r.totalDescontos) : '-'}</td>
               <td class="text-green">${r.comissao > 0 ? formatCurrency(r.comissao) : '-'}</td>
+              <td class="text-green">${r.totalHorasNoturnas > 0 ? r.totalHorasNoturnas + 'h (' + formatCurrency(r.valorAdicionalNoturno) + ')' : '-'}</td>
               <td style="font-weight:bold">${formatCurrency(r.liquido)}</td>
             </tr>`).join('')}
             <tr class="total-row">
@@ -207,6 +230,7 @@ const FechamentoFolha = () => {
               <td class="text-green">${formatCurrency(totals.bonus)}</td>
               <td class="text-red">${formatCurrency(totals.descontos)}</td>
               <td class="text-green">${formatCurrency(totals.comissao)}</td>
+              <td class="text-green">${formatCurrency(totals.noturno)}</td>
               <td>${formatCurrency(totals.liquido)}</td>
             </tr>
           </tbody>
@@ -259,30 +283,34 @@ const FechamentoFolha = () => {
 
         {/* Summary */}
         {rows.length > 0 && (
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-4">
             <div className="bg-card rounded-xl p-4 shadow-card border border-border">
-              <p className="text-xs text-muted-foreground">Total Salários</p>
-              <p className="text-xl font-bold text-foreground">{formatCurrency(totals.salario)}</p>
+              <p className="text-xs text-muted-foreground">Salários</p>
+              <p className="text-lg font-bold">{formatCurrency(totals.salario)}</p>
             </div>
             <div className="bg-card rounded-xl p-4 shadow-card border border-border">
-              <p className="text-xs text-muted-foreground">Total Vales</p>
-              <p className="text-xl font-bold text-destructive">{formatCurrency(totals.vales)}</p>
+              <p className="text-xs text-muted-foreground">Vales</p>
+              <p className="text-lg font-bold text-destructive">{formatCurrency(totals.vales)}</p>
             </div>
             <div className="bg-card rounded-xl p-4 shadow-card border border-border">
-              <p className="text-xs text-muted-foreground">Total Bônus</p>
-              <p className="text-xl font-bold text-success">{formatCurrency(totals.bonus)}</p>
+              <p className="text-xs text-muted-foreground">Bônus</p>
+              <p className="text-lg font-bold text-success">{formatCurrency(totals.bonus)}</p>
             </div>
             <div className="bg-card rounded-xl p-4 shadow-card border border-border">
-              <p className="text-xs text-muted-foreground">Total Descontos</p>
-              <p className="text-xl font-bold text-destructive">{formatCurrency(totals.descontos)}</p>
+              <p className="text-xs text-muted-foreground">Comissões</p>
+              <p className="text-lg font-bold text-success">{formatCurrency(totals.comissao)}</p>
             </div>
             <div className="bg-card rounded-xl p-4 shadow-card border border-border">
-              <p className="text-xs text-muted-foreground">Total Comissões</p>
-              <p className="text-xl font-bold text-success">{formatCurrency(totals.comissao)}</p>
+              <p className="text-xs text-muted-foreground">A. Noturno</p>
+              <p className="text-lg font-bold text-success">{formatCurrency(totals.noturno)}</p>
             </div>
             <div className="bg-card rounded-xl p-4 shadow-card border border-border">
-              <p className="text-xs text-muted-foreground">Total a Pagar</p>
-              <p className="text-xl font-bold text-primary">{formatCurrency(totals.liquido)}</p>
+              <p className="text-xs text-muted-foreground">Descontos</p>
+              <p className="text-lg font-bold text-destructive">{formatCurrency(totals.descontos)}</p>
+            </div>
+            <div className="bg-card rounded-xl p-4 shadow-card border border-border">
+              <p className="text-xs text-muted-foreground">Total Líquido</p>
+              <p className="text-lg font-bold text-primary">{formatCurrency(totals.liquido)}</p>
             </div>
           </div>
         )}
@@ -293,42 +321,37 @@ const FechamentoFolha = () => {
         ) : rows.length === 0 ? (
           <div className="text-center py-16 bg-card rounded-2xl shadow-card">
             <DollarSign className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
-            <p className="text-muted-foreground">Nenhum dado para este mês. Cadastre salários nos colaboradores e registre lançamentos.</p>
+            <p className="text-muted-foreground">Nenhum dado para este mês.</p>
           </div>
         ) : (
           <>
-            {/* Desktop Table */}
             <div className="bg-card rounded-2xl shadow-card overflow-hidden hidden md:block">
               <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Colaborador</TableHead>
-                    <TableHead className="text-right">Salário Base</TableHead>
-                    <TableHead className="text-right">Vales</TableHead>
-                    <TableHead className="text-right">Bônus</TableHead>
-                    <TableHead className="text-right">Descontos</TableHead>
-                    <TableHead className="text-right">Comissão</TableHead>
-                    <TableHead className="text-right">Valor Líquido</TableHead>
+                    <TableHead className="text-right">Salário</TableHead>
+                    <TableHead className="text-right">Vales/Desc.</TableHead>
+                    <TableHead className="text-right">Bônus/Comis.</TableHead>
+                    <TableHead className="text-right">Adic. Noturno</TableHead>
+                    <TableHead className="text-right">Líquido</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {rows.map((r) => (
                     <TableRow key={r.funcionario.id}>
                       <TableCell className="font-medium">{r.funcionario.nome}</TableCell>
-                      <TableCell className="text-right tabular-nums">{formatCurrency(r.salarioBase)}</TableCell>
-                      <TableCell className="text-right tabular-nums text-destructive font-semibold">
-                        {r.totalVales > 0 ? `- ${formatCurrency(r.totalVales)}` : '-'}
+                      <TableCell className="text-right">{formatCurrency(r.salarioBase)}</TableCell>
+                      <TableCell className="text-right text-destructive">
+                        -{formatCurrency(r.totalVales + r.totalDescontos)}
                       </TableCell>
-                      <TableCell className="text-right tabular-nums text-success font-semibold">
-                        {r.totalBonus > 0 ? formatCurrency(r.totalBonus) : '-'}
+                      <TableCell className="text-right text-success">
+                        +{formatCurrency(r.totalBonus + r.comissao)}
                       </TableCell>
-                      <TableCell className="text-right tabular-nums text-destructive font-semibold">
-                        {r.totalDescontos > 0 ? `- ${formatCurrency(r.totalDescontos)}` : '-'}
+                      <TableCell className="text-right text-success">
+                        {r.totalHorasNoturnas > 0 ? `${r.totalHorasNoturnas}h (${formatCurrency(r.valorAdicionalNoturno)})` : '-'}
                       </TableCell>
-                      <TableCell className="text-right tabular-nums text-success font-semibold">
-                        {r.comissao > 0 ? formatCurrency(r.comissao) : '-'}
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums font-bold text-primary">
+                      <TableCell className="text-right font-bold text-primary">
                         {formatCurrency(r.liquido)}
                       </TableCell>
                     </TableRow>
@@ -337,32 +360,29 @@ const FechamentoFolha = () => {
                 <TableFooter>
                   <TableRow className="bg-secondary/50 font-bold">
                     <TableCell>TOTAL</TableCell>
-                    <TableCell className="text-right tabular-nums">{formatCurrency(totals.salario)}</TableCell>
-                    <TableCell className="text-right tabular-nums text-destructive">{formatCurrency(totals.vales)}</TableCell>
-                    <TableCell className="text-right tabular-nums text-success">{formatCurrency(totals.bonus)}</TableCell>
-                    <TableCell className="text-right tabular-nums text-destructive">{formatCurrency(totals.descontos)}</TableCell>
-                    <TableCell className="text-right tabular-nums text-success">{formatCurrency(totals.comissao)}</TableCell>
-                    <TableCell className="text-right tabular-nums text-primary">{formatCurrency(totals.liquido)}</TableCell>
+                    <TableCell className="text-right">{formatCurrency(totals.salario)}</TableCell>
+                    <TableCell className="text-right text-destructive">{formatCurrency(totals.vales + totals.descontos)}</TableCell>
+                    <TableCell className="text-right text-success">{formatCurrency(totals.bonus + totals.comissao)}</TableCell>
+                    <TableCell className="text-right text-success">{formatCurrency(totals.noturno)}</TableCell>
+                    <TableCell className="text-right text-primary">{formatCurrency(totals.liquido)}</TableCell>
                   </TableRow>
                 </TableFooter>
               </Table>
             </div>
 
-            {/* Mobile Cards */}
             <div className="md:hidden space-y-3">
               {rows.map((r) => (
                 <div key={r.funcionario.id} className="bg-card rounded-xl p-4 shadow-card border border-border space-y-3">
-                  <p className="font-semibold text-foreground">{r.funcionario.nome}</p>
+                  <p className="font-semibold">{r.funcionario.nome}</p>
                   <div className="grid grid-cols-2 gap-2 text-sm">
-                    <div><span className="text-muted-foreground">Salário:</span> <span className="font-medium">{formatCurrency(r.salarioBase)}</span></div>
-                    {r.totalVales > 0 && <div><span className="text-muted-foreground">Vales:</span> <span className="font-medium text-destructive">- {formatCurrency(r.totalVales)}</span></div>}
-                    {r.totalBonus > 0 && <div><span className="text-muted-foreground">Bônus:</span> <span className="font-medium text-success">{formatCurrency(r.totalBonus)}</span></div>}
-                    {r.totalDescontos > 0 && <div><span className="text-muted-foreground">Descontos:</span> <span className="font-medium text-destructive">- {formatCurrency(r.totalDescontos)}</span></div>}
-                    {r.comissao > 0 && <div><span className="text-muted-foreground">Comissão:</span> <span className="font-medium text-success">{formatCurrency(r.comissao)}</span></div>}
+                    <div><span className="text-muted-foreground">Salário:</span> {formatCurrency(r.salarioBase)}</div>
+                    <div><span className="text-muted-foreground">Adic. Not:</span> {formatCurrency(r.valorAdicionalNoturno)}</div>
+                    <div><span className="text-muted-foreground">Descontos:</span> <span className="text-destructive">-{formatCurrency(r.totalVales + r.totalDescontos)}</span></div>
+                    <div><span className="text-muted-foreground">Ganhos:</span> <span className="text-success">+{formatCurrency(r.totalBonus + r.comissao)}</span></div>
                   </div>
-                  <div className="pt-2 border-t border-border flex justify-between">
-                    <span className="text-sm text-muted-foreground">Valor Líquido</span>
-                    <span className="font-bold text-primary">{formatCurrency(r.liquido)}</span>
+                  <div className="pt-2 border-t flex justify-between font-bold">
+                    <span>Líquido</span>
+                    <span className="text-primary">{formatCurrency(r.liquido)}</span>
                   </div>
                 </div>
               ))}
