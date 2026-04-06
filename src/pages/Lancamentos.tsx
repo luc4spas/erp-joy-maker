@@ -43,6 +43,55 @@ const typeColors: Record<string, string> = {
   desconto: 'bg-muted text-muted-foreground',
 };
 
+const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  const file = event.target.files?.[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = async (e) => {
+    const text = e.target?.result as string;
+    
+    // Divide as linhas (pulando o cabeçalho)
+    const lines = text.split('\n').slice(1);
+    
+    const imports = lines.map(line => {
+      // Divide por vírgula ou ponto-e-vírgula dependendo do seu CSV
+      const columns = line.split(','); 
+      
+      const nomePlanilha = columns[0]?.replace(/"/g, '').trim(); // Coluna A (Nome)
+      const horasNoturnasStr = columns[11]?.replace(/"/g, '').replace(',', '.'); // Coluna L (Adic. Noturno)
+      
+      return {
+        nome: nomePlanilha,
+        horas: parseFloat(horasNoturnasStr) || 0
+      };
+    }).filter(item => item.horas > 0);
+
+    // Agora, para cada item, buscamos o ID do funcionário no seu array 'funcionarios'
+    for (const item of imports) {
+      const funcionario = funcionarios.find(f => 
+        f.nome.toUpperCase() === item.nome.toUpperCase()
+      );
+
+      if (funcionario) {
+        // Salva no Supabase
+        await supabase.from('payroll_transactions').insert({
+          employee_id: funcionario.id,
+          transaction_type: 'adicional_noturno',
+          hours_quantity: item.horas,
+          amount: 0, // O valor em R$ será calculado no FechamentoFolha.tsx
+          reference_month: monthStart.toISOString(),
+          description: 'Importado via planilha de ponto'
+        });
+      }
+    }
+    
+    toast({ title: "Sucesso", description: "Horas noturnas importadas com sucesso!" });
+    fetchTransactions(); // Recarrega a lista na tela
+  };
+  reader.readAsText(file);
+};
+
 const Lancamentos = () => {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [funcionarios, setFuncionarios] = useState<Funcionario[]>([]);
@@ -183,6 +232,22 @@ const Lancamentos = () => {
               </Dialog>
             )}
           </div>
+          <div className="flex gap-2">
+  <Button variant="outline" className="relative">
+    <Download className="w-4 h-4 mr-2" />
+    Importar Ponto
+    <input
+      type="file"
+      className="absolute inset-0 opacity-0 cursor-pointer"
+      accept=".csv"
+      onChange={handleFileUpload}
+    />
+  </Button>
+  
+  <Button onClick={() => setIsOpen(true)}>
+    <Plus className="w-4 h-4 mr-2" /> Novo Lançamento
+  </Button>
+</div>
         </div>
 
         {/* Summary */}
