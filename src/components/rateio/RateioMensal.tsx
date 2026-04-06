@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Loader2, ChevronLeft, ChevronRight, Calendar, Printer, DollarSign, Users } from 'lucide-react';
-import { format, startOfMonth, endOfMonth, addMonths, subMonths, addDays, isBefore, isAfter, startOfDay } from 'date-fns';
+import { format, startOfMonth, endOfMonth, addMonths, subMonths, addDays, isBefore, isAfter } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 interface Funcionario {
@@ -51,7 +51,7 @@ export const RateioMensal = () => {
   const fetchMonthlyData = async () => {
     setIsLoading(true);
     
-    // Define limites estritos do mês
+    // 1. Definição do intervalo rígido: Dia 1 ao último dia do mês
     const start = startOfMonth(monthStart);
     const end = endOfMonth(monthStart);
 
@@ -73,7 +73,7 @@ export const RateioMensal = () => {
       return;
     }
 
-    // Geração das fatias de semanas dentro do mês (ex: 01 a 07, 08 a 14...)
+    // 2. Cálculo das fatias semanais (limitadas ao mês)
     const colunasSemanas: { inicio: Date; fim: Date }[] = [];
     let current = new Date(start);
     while (isBefore(current, end)) {
@@ -90,7 +90,6 @@ export const RateioMensal = () => {
       });
     });
 
-    // Percentuais oficiais
     const pGarcom = 0.475 / 0.8;
     const pCozinha = 0.275 / 0.8;
     const pAdmin = 0.05 / 0.8;
@@ -127,15 +126,10 @@ export const RateioMensal = () => {
           vJ = vA * prop; vT = vA * (1 - prop);
         }
 
-        const totalSemana = vJ + vT;
-        if (totalSemana > 0) {
+        if (vJ + vT > 0) {
           const item = funcMap.get(f.id)!;
-          item.semanas.push({ 
-            inicio: format(semana.inicio, 'dd/MM'), 
-            fim: format(semana.fim, 'dd/MM'), 
-            valor: totalSemana 
-          });
-          item.totalMes += totalSemana;
+          item.semanas.push({ inicio: '', fim: '', valor: vJ + vT });
+          item.totalMes += (vJ + vT);
           item.valorJapa += vJ;
           item.valorTrattoria += vT;
         }
@@ -154,16 +148,16 @@ export const RateioMensal = () => {
   const mesAnoLabel = format(monthStart, "MMMM 'de' yyyy", { locale: ptBR });
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      {/* Header com Navegação */}
+    <div className="space-y-6">
+      {/* Header original com navegação */}
       <div className="bg-card rounded-xl p-4 shadow-card border border-border flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <Button variant="outline" size="icon" onClick={() => setMonthStart(subMonths(monthStart, 1))}>
             <ChevronLeft className="w-4 h-4" />
           </Button>
-          <div className="flex flex-col items-center min-w-[140px]">
-            <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Referência</span>
-            <span className="text-lg font-bold text-primary capitalize">{mesAnoLabel}</span>
+          <div className="text-center min-w-[150px]">
+            <p className="text-xs text-muted-foreground font-medium uppercase">Referência</p>
+            <p className="text-lg font-bold capitalize">{mesAnoLabel}</p>
           </div>
           <Button variant="outline" size="icon" onClick={() => setMonthStart(addMonths(monthStart, 1))}>
             <ChevronRight className="w-4 h-4" />
@@ -172,64 +166,59 @@ export const RateioMensal = () => {
 
         <div className="flex items-center gap-4">
           <div className="text-right">
-            <p className="text-[10px] uppercase font-bold text-muted-foreground">Total do Mês</p>
-            <p className="text-2xl font-black text-primary">{formatCurrency(totalGeralMes)}</p>
+            <p className="text-xs text-muted-foreground font-medium uppercase">Total Comissões</p>
+            <p className="text-2xl font-bold text-primary">{formatCurrency(totalGeralMes)}</p>
           </div>
-          <Button variant="outline" size="icon" className="rounded-full">
-            <Printer className="w-4 h-4" />
-          </Button>
         </div>
       </div>
 
       {isLoading ? (
-        <div className="flex flex-col items-center justify-center py-20 gap-4">
-          <Loader2 className="w-10 h-10 animate-spin text-primary" />
-          <p className="text-muted-foreground animate-pulse">Calculando rateio mensal...</p>
+        <div className="flex justify-center py-12">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {rateioMensal.map((r) => (
-            <div key={r.funcionario.id} className="bg-card rounded-xl p-5 shadow-card border border-border hover:border-primary/30 transition-all group">
-              <div className="flex justify-between items-start mb-4">
-                <div>
-                  <h3 className="font-bold text-foreground group-hover:text-primary transition-colors">{r.funcionario.nome}</h3>
-                  <Badge variant="secondary" className={`mt-1 text-[9px] font-bold ${
-                    r.funcionario.frente === 'Japa' ? 'bg-japa-light text-japa-foreground' :
-                    r.funcionario.frente === 'Trattoria' ? 'bg-trattoria-light text-trattoria-foreground' :
-                    'bg-secondary'
-                  }`}>
-                    {r.funcionario.setor === 'Administrativo' 
-                      ? 'CAIXA/ADM' 
-                      : `${r.funcionario.setor.toUpperCase()} ${r.funcionario.frente.toUpperCase()}`}
-                  </Badge>
-                </div>
-                <p className="text-xl font-black text-primary">{formatCurrency(r.totalMes)}</p>
-              </div>
-
-              <div className="grid grid-cols-2 gap-2 mb-4">
-                <div className="bg-japa-light/30 rounded-lg p-2 border border-japa/10">
-                  <p className="text-[9px] uppercase font-bold text-japa-foreground/60">Japa</p>
-                  <p className="text-xs font-bold text-japa-foreground">{formatCurrency(r.valorJapa)}</p>
-                </div>
-                <div className="bg-trattoria-light/30 rounded-lg p-2 border border-trattoria/10">
-                  <p className="text-[9px] uppercase font-bold text-trattoria-foreground/60">Trattoria</p>
-                  <p className="text-xs font-bold text-trattoria-foreground">{formatCurrency(r.valorTrattoria)}</p>
-                </div>
-              </div>
-
-              <div className="space-y-1.5">
-                <p className="text-[10px] font-bold text-muted-foreground uppercase flex items-center gap-1">
-                  <Calendar className="w-3 h-3" /> Detalhamento Semanal
-                </p>
-                {r.semanas.map((s, idx) => (
-                  <div key={idx} className="flex justify-between text-xs py-1 border-b border-border/50 last:border-0">
-                    <span className="text-muted-foreground">{s.inicio} a {s.fim}</span>
-                    <span className="font-medium">{formatCurrency(s.valor)}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))}
+        <div className="bg-card rounded-xl shadow-card border border-border overflow-hidden">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Colaborador</TableHead>
+                <TableHead>Setor / Frente</TableHead>
+                <TableHead className="text-right text-japa">Japa</TableHead>
+                <TableHead className="text-right text-trattoria">Trattoria</TableHead>
+                <TableHead className="text-right font-bold">Total Mês</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {rateioMensal.map((r) => (
+                <TableRow key={r.funcionario.id}>
+                  <TableCell>
+                    <div className="font-bold">{r.funcionario.nome}</div>
+                    <div className="text-[10px] text-muted-foreground uppercase">{r.semanas.length} semana(s) ativa(s)</div>
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant="outline" className={`text-[10px] font-bold ${
+                      r.funcionario.frente === 'Japa' ? 'border-japa text-japa' :
+                      r.funcionario.frente === 'Trattoria' ? 'border-trattoria text-trattoria' :
+                      'border-secondary'
+                    }`}>
+                      {r.funcionario.setor === 'Administrativo' 
+                        ? 'CAIXA/ADM' 
+                        : `${r.funcionario.setor.toUpperCase()} ${r.funcionario.frente.toUpperCase()}`}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-right text-xs text-japa-foreground">
+                    {r.valorJapa > 0 ? formatCurrency(r.valorJapa) : '-'}
+                  </TableCell>
+                  <TableCell className="text-right text-xs text-trattoria-foreground">
+                    {r.valorTrattoria > 0 ? formatCurrency(r.valorTrattoria) : '-'}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <span className="font-bold text-primary">{formatCurrency(r.totalMes)}</span>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         </div>
       )}
     </div>
