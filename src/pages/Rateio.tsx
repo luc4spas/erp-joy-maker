@@ -82,6 +82,26 @@ const Rateio = () => {
     cozinhaTrattoria: 0,
     caixaAdmCumins: 0
   });
+  const finalizarRateioNoBanco = async (listaComissoes: any[]) => {
+  const { data, error } = await supabase
+    .from('payroll_transactions')
+    .insert(
+      listaComissoes.map(item => ({
+        employee_id: item.funcionarioId,
+        transaction_type: 'comissao',
+        amount: item.valor,
+        reference_month: format(monthStart, 'yyyy-MM-01'), // Mês de referência
+        transaction_date: new Date().toISOString(),
+        description: 'Comissão vinda do Rateio Semanal'
+      }))
+    );
+
+  if (error) {
+    toast({ title: "Erro ao salvar", description: error.message, variant: "destructive" });
+  } else {
+    toast({ title: "Sucesso!", description: "Comissões enviadas para a Folha de Pagamento." });
+  }
+};
   const [isLoading, setIsLoading] = useState(true);
   const [weekStart, setWeekStart] = useState<Date>(() => startOfWeek(new Date(), { weekStartsOn: 0 }));
   const [pagamentos, setPagamentos] = useState<Record<string, { id: string; pago: boolean }>>({});
