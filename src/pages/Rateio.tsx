@@ -82,26 +82,55 @@ const Rateio = () => {
     cozinhaTrattoria: 0,
     caixaAdmCumins: 0
   });
-  const finalizarRateioNoBanco = async (listaComissoes: any[]) => {
-  const { data, error } = await supabase
-    .from('payroll_transactions')
-    .insert(
-      listaComissoes.map(item => ({
-        employee_id: item.funcionarioId,
-        transaction_type: 'comissao',
-        amount: item.valor,
-        reference_month: format(monthStart, 'yyyy-MM-01'), // Mês de referência
-        transaction_date: new Date().toISOString(),
-        description: 'Comissão vinda do Rateio Semanal'
-      }))
-    );
+  // Print all receipts
+  const handlePrintAll = () => {
+    if (rateio.length === 0) return;
+    const periodoInicio = formatDateBR(format(weekStart, 'yyyy-MM-dd'));
+    const periodoFim = formatDateBR(format(weekEnd, 'yyyy-MM-dd'));
+    
+    const recibosHtml = rateio.map(item => {
+      const detalhes: string[] = [];
+      if (item.valorJapa > 0) detalhes.push(`<p><strong>Japa:</strong> ${formatCurrency(item.valorJapa)}</p>`);
+      if (item.valorTrattoria > 0) detalhes.push(`<p><strong>Trattoria:</strong> ${formatCurrency(item.valorTrattoria)}</p>`);
+      
+      return `
+        <div class="recibo" style="page-break-after: always;">
+          <h1>RECIBO DE PAGAMENTO</h1>
+          <div class="periodo"><strong>Referente ao período de ${periodoInicio} a ${periodoFim}</strong></div>
+          <div class="info">
+            <p><strong>Nome:</strong> ${item.funcionario.nome}</p>
+            <p><strong>Setor:</strong> ${item.funcionario.setor}</p>
+            <p><strong>Frente:</strong> ${item.funcionario.frente}</p>
+          </div>
+          <div class="valores">
+            <h3>Detalhamento por Frente:</h3>
+            ${detalhes.join('')}
+            <p><strong>Dias com fechamento:</strong> ${item.totalDias} dia(s)</p>
+          </div>
+          <p class="total">VALOR TOTAL: ${formatCurrency(item.valor)}</p>
+          <div class="assinatura">Assinatura do Colaborador</div>
+        </div>
+      `;
+    }).join('');
 
-  if (error) {
-    toast({ title: "Erro ao salvar", description: error.message, variant: "destructive" });
-  } else {
-    toast({ title: "Sucesso!", description: "Comissões enviadas para a Folha de Pagamento." });
-  }
-};
+    const w = window.open('', '_blank');
+    if (w) {
+      w.document.write(`<html><head><title>Recibos de Pagamento</title>
+        <style>
+          body { font-family: Arial, sans-serif; padding: 40px; max-width: 600px; margin: 0 auto; }
+          h1 { font-size: 20px; text-align: center; border-bottom: 2px solid #000; padding-bottom: 10px; }
+          .info { margin: 20px 0; } .info p { margin: 8px 0; } .info strong { display: inline-block; width: 120px; }
+          .valores { background: #f5f5f5; padding: 15px; border-radius: 8px; margin: 20px 0; }
+          .valores h3 { margin-top: 0; font-size: 14px; } .valores p { margin: 5px 0; }
+          .total { font-size: 18px; font-weight: bold; border-top: 2px solid #000; padding-top: 10px; margin-top: 10px; }
+          .assinatura { margin-top: 60px; border-top: 1px solid #000; padding-top: 10px; text-align: center; }
+          .periodo { background: #e8f4f8; padding: 10px; border-radius: 5px; text-align: center; margin-bottom: 20px; }
+          @media print { .recibo:last-child { page-break-after: avoid; } }
+        </style></head><body>${recibosHtml}</body></html>`);
+      w.document.close();
+      w.print();
+    }
+  };
   const [isLoading, setIsLoading] = useState(true);
   const [weekStart, setWeekStart] = useState<Date>(() => startOfWeek(new Date(), { weekStartsOn: 0 }));
   const [pagamentos, setPagamentos] = useState<Record<string, { id: string; pago: boolean }>>({});
@@ -714,8 +743,12 @@ const Rateio = () => {
           </div>
         ) : (
           <div className="bg-card rounded-2xl shadow-card overflow-hidden">
-            <div className="p-4 border-b border-border">
+            <div className="p-4 border-b border-border flex items-center justify-between">
               <h3 className="font-semibold text-lg">Rateio Individual por Colaborador</h3>
+              <Button variant="outline" size="sm" onClick={handlePrintAll}>
+                <Printer className="w-4 h-4 mr-2" />
+                Imprimir Todos os Recibos
+              </Button>
             </div>
             
             {/* Desktop Table */}
