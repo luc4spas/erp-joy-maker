@@ -3,7 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { formatCurrency } from '@/lib/processData';
 import { Button } from '@/components/ui/button';
-import { Loader2, Save, CheckCircle2 } from 'lucide-react';
+import { Loader2, Printer } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from '@/components/ui/table';
 import { format, startOfMonth } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -11,7 +11,6 @@ import { ptBR } from 'date-fns/locale';
 export const RateioMensal = () => {
   const [rows, setRows] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
   const [monthStart] = useState(() => startOfMonth(new Date()));
   const { toast } = useToast();
 
@@ -54,56 +53,28 @@ export const RateioMensal = () => {
     }
   };
 
-  // FUNÇÃO PARA SALVAR NO BANCO DE DADOS
-  const handleEfetivarComissoes = async () => {
-    if (rows.length === 0) return;
-    setIsSaving(true);
-    
-    const refMonth = format(monthStart, 'yyyy-MM-01');
-
-    try {
-      // 1. Deleta comissões antigas do mês para evitar duplicidade
-      const { error: deleteError } = await supabase
-        .from('payroll_transactions')
-        .delete()
-        .eq('reference_month', refMonth)
-        .eq('transaction_type', 'comissao');
-
-      if (deleteError) throw deleteError;
-
-      // 2. Prepara os dados para o insert
-      // Filtramos apenas quem tem valor de comissão > 0
-      const transactionsToInsert = rows
-        .filter(r => r.totalMes > 0)
-        .map(r => ({
-          employee_id: r.funcionarioId,
-          transaction_type: 'comissao',
-          amount: r.totalMes,
-          reference_month: refMonth,
-          transaction_date: new Date().toISOString(),
-          description: `Comissão Rateio Mensal - ${format(monthStart, 'MMMM/yyyy', { locale: ptBR })}`
-        }));
-
-      if (transactionsToInsert.length > 0) {
-        const { error: insertError } = await supabase
-          .from('payroll_transactions')
-          .insert(transactionsToInsert);
-
-        if (insertError) throw insertError;
-      }
-
-      toast({
-        title: "Comissões Efetivadas!",
-        description: "Os valores foram salvos e já aparecem no Fechamento de Folha.",
-      });
-    } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "Erro ao salvar",
-        description: error.message,
-      });
-    } finally {
-      setIsSaving(false);
+  const handlePrintMonthly = () => {
+    const mesRef = format(monthStart, 'MMMM/yyyy', { locale: ptBR });
+    const w = window.open('', '_blank');
+    if (w) {
+      w.document.write(`<html><head><title>Rateio Mensal - ${mesRef}</title>
+        <style>
+          body { font-family: Arial, sans-serif; padding: 30px; max-width: 800px; margin: 0 auto; }
+          h1 { font-size: 20px; text-align: center; border-bottom: 2px solid #000; padding-bottom: 10px; }
+          table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+          th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+          th { background: #f0f0f0; } .text-right { text-align: right; }
+          tfoot td { font-weight: bold; background: #f9f9f9; }
+        </style></head><body>
+        <h1>RATEIO MENSAL DE COMISSÕES</h1>
+        <p style="text-align:center">${mesRef.toUpperCase()}</p>
+        <table>
+          <thead><tr><th>Colaborador</th><th>Setor</th><th class="text-right">Total Mês</th></tr></thead>
+          <tbody>${rows.map(r => `<tr><td>${r.nome}</td><td>${r.setor}</td><td class="text-right">${formatCurrency(r.totalMes)}</td></tr>`).join('')}</tbody>
+          <tfoot><tr><td colspan="2">Total Geral</td><td class="text-right">${formatCurrency(rows.reduce((a, c) => a + c.totalMes, 0))}</td></tr></tfoot>
+        </table></body></html>`);
+      w.document.close();
+      w.print();
     }
   };
 
@@ -114,12 +85,13 @@ export const RateioMensal = () => {
       <div className="flex justify-between items-center">
         <h3 className="text-lg font-semibold">Resumo Mensal de Comissões</h3>
         <Button 
-          onClick={handleEfetivarComissoes} 
-          disabled={isSaving}
-          className="bg-green-600 hover:bg-green-700 text-white gap-2"
+          variant="outline"
+          onClick={handlePrintMonthly} 
+          disabled={rows.length === 0}
+          className="gap-2"
         >
-          {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-          {isSaving ? "Salvando..." : "Efetivar Comissões na Folha"}
+          <Printer className="w-4 h-4" />
+          Imprimir Relatório
         </Button>
       </div>
 
