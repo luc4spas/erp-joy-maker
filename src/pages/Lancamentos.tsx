@@ -168,9 +168,9 @@ const Lancamentos = () => {
     const validImports = importPreview.filter(p => p.status === 'sucesso');
     try {
       const inserts = validImports.map(item => ({
-        user_id: user?.id,
+        user_id: user?.id as string,
         employee_id: item.funcionarioId,
-        transaction_type: 'adicional_noturno',
+        transaction_type: 'adicional_noturno' as const,
         hours_quantity: item.horas,
         amount: 0,
         reference_month: refMonth,
