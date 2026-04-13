@@ -450,6 +450,7 @@ export type Database = {
           created_at: string
           description: string | null
           employee_id: string
+          hours_quantity: number | null
           id: string
           reference_month: string
           transaction_type: Database["public"]["Enums"]["payroll_transaction_type"]
@@ -460,6 +461,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           employee_id: string
+          hours_quantity?: number | null
           id?: string
           reference_month: string
           transaction_type: Database["public"]["Enums"]["payroll_transaction_type"]
@@ -470,6 +472,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           employee_id?: string
+          hours_quantity?: number | null
           id?: string
           reference_month?: string
           transaction_type?: Database["public"]["Enums"]["payroll_transaction_type"]
@@ -561,7 +564,11 @@ export type Database = {
     Enums: {
       conta_status: "pendente" | "pago" | "atrasado"
       frente_tipo: "Japa" | "Trattoria" | "Ambas"
-      payroll_transaction_type: "vale" | "bonus" | "desconto"
+      payroll_transaction_type:
+        | "vale"
+        | "bonus"
+        | "desconto"
+        | "adicional_noturno"
       setor_tipo: "Garçom" | "Cozinha" | "Administrativo"
     }
     CompositeTypes: {
@@ -692,7 +699,12 @@ export const Constants = {
     Enums: {
       conta_status: ["pendente", "pago", "atrasado"],
       frente_tipo: ["Japa", "Trattoria", "Ambas"],
-      payroll_transaction_type: ["vale", "bonus", "desconto"],
+      payroll_transaction_type: [
+        "vale",
+        "bonus",
+        "desconto",
+        "adicional_noturno",
+      ],
       setor_tipo: ["Garçom", "Cozinha", "Administrativo"],
     },
   },
