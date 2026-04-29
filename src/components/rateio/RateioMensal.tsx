@@ -230,6 +230,23 @@ export const RateioMensal = () => {
         </Button>
       </div>
 
+      {!isLoading && rows.length > 0 && (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="bg-card rounded-xl p-4 shadow-sm border border-border">
+            <p className="text-xs text-muted-foreground">Colaboradores</p>
+            <p className="text-2xl font-bold text-foreground">{rows.length}</p>
+          </div>
+          <div className="bg-card rounded-xl p-4 shadow-sm border border-border">
+            <p className="text-xs text-muted-foreground">Dias com Fechamento</p>
+            <p className="text-2xl font-bold text-foreground">{diasComFechamento}</p>
+          </div>
+          <div className="bg-card rounded-xl p-4 shadow-sm border border-border">
+            <p className="text-xs text-muted-foreground">Total Geral do Mês</p>
+            <p className="text-2xl font-bold text-primary tabular-nums">{formatCurrency(totalGeral)}</p>
+          </div>
+        </div>
+      )}
+
       {isLoading ? (
         <div className="flex justify-center p-10">
           <Loader2 className="animate-spin" />
