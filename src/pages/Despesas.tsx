@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
@@ -16,6 +16,7 @@ import { Loader2, Plus, Trash2, Receipt } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { startOfMonth, endOfMonth, format } from 'date-fns';
+import { DataPagination } from '@/components/ui/data-pagination';
 
 interface Despesa { id: string; data: string; descricao: string; valor: number; categoria: string; }
 
@@ -28,6 +29,8 @@ const Despesas = () => {
   const [form, setForm] = useState({ data: format(new Date(), 'yyyy-MM-dd'), descricao: '', valor: '', categoria: 'Outros' });
   const [startDate, setStartDate] = useState<Date>(startOfMonth(new Date()));
   const [endDate, setEndDate] = useState<Date>(endOfMonth(new Date()));
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
   const navigate = useNavigate();
   const { user, isLoading: authLoading } = useAuth();
   const { hasPermission } = usePermissions();
@@ -61,6 +64,12 @@ const Despesas = () => {
   };
 
   const totalDespesas = despesas.reduce((s, d) => s + Number(d.valor), 0);
+  const pagedDespesas = useMemo(() => {
+    const start = (page - 1) * pageSize;
+    return despesas.slice(start, start + pageSize);
+  }, [despesas, page, pageSize]);
+
+  useEffect(() => { setPage(1); }, [startDate, endDate, pageSize]);
 
   if (authLoading) return <div className="min-h-screen flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
   if (!user) return null;
@@ -94,8 +103,17 @@ const Despesas = () => {
         ) : (
           <div className="bg-card rounded-2xl shadow-card overflow-hidden">
             <Table><TableHeader><TableRow><TableHead>Data</TableHead><TableHead>Descrição</TableHead><TableHead>Categoria</TableHead><TableHead className="text-right">Valor</TableHead>{canDelete && <TableHead>Ação</TableHead>}</TableRow></TableHeader>
-              <TableBody>{despesas.map((d) => (<TableRow key={d.id}><TableCell>{formatDateBR(d.data)}</TableCell><TableCell>{d.descricao}</TableCell><TableCell>{d.categoria}</TableCell><TableCell className="text-right text-destructive font-medium">{formatCurrency(d.valor)}</TableCell>{canDelete && <TableCell><Button variant="ghost" size="icon" onClick={() => handleDelete(d.id)}><Trash2 className="w-4 h-4 text-destructive" /></Button></TableCell>}</TableRow>))}</TableBody>
+              <TableBody>{pagedDespesas.map((d) => (<TableRow key={d.id}><TableCell>{formatDateBR(d.data)}</TableCell><TableCell>{d.descricao}</TableCell><TableCell>{d.categoria}</TableCell><TableCell className="text-right text-destructive font-medium">{formatCurrency(d.valor)}</TableCell>{canDelete && <TableCell><Button variant="ghost" size="icon" onClick={() => handleDelete(d.id)}><Trash2 className="w-4 h-4 text-destructive" /></Button></TableCell>}</TableRow>))}</TableBody>
             </Table>
+            <div className="px-4 pb-3">
+              <DataPagination
+                page={page}
+                pageSize={pageSize}
+                total={despesas.length}
+                onPageChange={setPage}
+                onPageSizeChange={setPageSize}
+              />
+            </div>
           </div>
         )}
       </div>
