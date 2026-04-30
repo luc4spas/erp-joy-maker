@@ -33,6 +33,7 @@ import {
   Calendar as CalendarIcon,
   FileText,
   Loader2,
+  Eye,
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/processData';
 import {
@@ -48,6 +49,15 @@ import {
 } from 'recharts';
 import { format, startOfMonth, endOfMonth, addDays, isSameDay, isBefore, parseISO } from 'date-fns';
 import { useNavigate } from 'react-router-dom';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { DataPagination } from '@/components/ui/data-pagination';
+import { NovaContaPagarDialog } from '@/components/financeiro/NovaContaPagarDialog';
+import { NovaDespesaDialog } from '@/components/financeiro/NovaDespesaDialog';
 
 type Unidade = 'consolidado' | 'japa' | 'trattoria';
 type StatusConta = 'vencido' | 'vence_hoje' | 'a_vencer' | 'pago';
@@ -112,6 +122,15 @@ export default function FinancialDashboard() {
   const [rows, setRows] = useState<ContaRow[]>([]);
   const [faturamentoMes, setFaturamentoMes] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Modais
+  const [novaContaOpen, setNovaContaOpen] = useState(false);
+  const [novaDespesaOpen, setNovaDespesaOpen] = useState(false);
+  const [detalhesRow, setDetalhesRow] = useState<ContaRow | null>(null);
+
+  // Paginação
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   useEffect(() => {
     void fetchAll();
@@ -196,6 +215,19 @@ export default function FinancialDashboard() {
       return true;
     });
   }, [rows, busca, filtroStatus, filtroTipo, filtroData]);
+
+  const sortedRows = useMemo(
+    () => filteredRows.slice().sort((a, b) => a.vencimento.localeCompare(b.vencimento)),
+    [filteredRows],
+  );
+
+  const pagedRows = useMemo(() => {
+    const start = (page - 1) * pageSize;
+    return sortedRows.slice(start, start + pageSize);
+  }, [sortedRows, page, pageSize]);
+
+  // Reset página quando filtros mudarem
+  useEffect(() => { setPage(1); }, [busca, filtroStatus, filtroTipo, filtroData, pageSize]);
 
   const totals = useMemo(() => {
     const vencidas = rows.filter((r) => r.status === 'vencido');
@@ -372,10 +404,10 @@ export default function FinancialDashboard() {
                     Central de Contas e Despesas
                   </CardTitle>
                   <div className="flex gap-2">
-                    <Button variant="default" size="sm" onClick={() => navigate('/contas-pagar')}>
+                    <Button variant="default" size="sm" onClick={() => setNovaContaOpen(true)}>
                       <Plus className="w-4 h-4" /> Nova Conta a Pagar
                     </Button>
-                    <Button variant="secondary" size="sm" onClick={() => navigate('/despesas')}>
+                    <Button variant="secondary" size="sm" onClick={() => setNovaDespesaOpen(true)}>
                       <Plus className="w-4 h-4" /> Lançar Despesa Diária
                     </Button>
                   </div>
@@ -437,20 +469,18 @@ export default function FinancialDashboard() {
                         <TableHead>Vencimento</TableHead>
                         <TableHead className="text-right">Valor</TableHead>
                         <TableHead>Status</TableHead>
+                        <TableHead className="text-center w-[80px]">Ações</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {filteredRows.length === 0 ? (
+                      {sortedRows.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                          <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
                             Nenhum registro encontrado.
                           </TableCell>
                         </TableRow>
                       ) : (
-                        filteredRows
-                          .slice()
-                          .sort((a, b) => a.vencimento.localeCompare(b.vencimento))
-                          .map((r) => (
+                        pagedRows.map((r) => (
                             <TableRow key={r.id}>
                               <TableCell>
                                 <div className="font-medium">{r.descricao}</div>
@@ -466,18 +496,78 @@ export default function FinancialDashboard() {
                                 {formatCurrency(r.valor)}
                               </TableCell>
                               <TableCell>{statusBadge(r.status)}</TableCell>
+                              <TableCell className="text-center">
+                                <Button variant="ghost" size="sm" onClick={() => setDetalhesRow(r)}>
+                                  <Eye className="w-4 h-4" />
+                                </Button>
+                              </TableCell>
                             </TableRow>
                           ))
                       )}
                     </TableBody>
                   </Table>
                 </div>
+                <DataPagination
+                  page={page}
+                  pageSize={pageSize}
+                  total={sortedRows.length}
+                  onPageChange={setPage}
+                  onPageSizeChange={setPageSize}
+                />
               </CardContent>
             </Card>
           </>
         )}
       </div>
+
+      {/* Modais inline */}
+      <NovaContaPagarDialog open={novaContaOpen} onOpenChange={setNovaContaOpen} onSaved={fetchAll} />
+      <NovaDespesaDialog open={novaDespesaOpen} onOpenChange={setNovaDespesaOpen} onSaved={fetchAll} />
+
+      <Dialog open={!!detalhesRow} onOpenChange={(v) => !v && setDetalhesRow(null)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Detalhes do Lançamento</DialogTitle>
+          </DialogHeader>
+          {detalhesRow && (
+            <div className="space-y-3 text-sm">
+              <DetailRow label="Descrição" value={detalhesRow.descricao} />
+              <DetailRow label="Fornecedor / Categoria" value={detalhesRow.fornecedor} />
+              <DetailRow label="Tipo" value={tipoLabel[detalhesRow.tipo]} />
+              <DetailRow
+                label="Vencimento"
+                value={new Date(detalhesRow.vencimento + 'T00:00:00').toLocaleDateString('pt-BR')}
+              />
+              <DetailRow label="Valor" value={formatCurrency(detalhesRow.valor)} />
+              <div className="flex justify-between items-center py-2 border-b">
+                <span className="text-muted-foreground">Status</span>
+                {statusBadge(detalhesRow.status)}
+              </div>
+              <div className="pt-3 flex justify-end gap-2">
+                {detalhesRow.tipo === 'despesa_diaria' ? (
+                  <Button variant="outline" size="sm" onClick={() => navigate('/despesas')}>
+                    Ver em Despesas
+                  </Button>
+                ) : (
+                  <Button variant="outline" size="sm" onClick={() => navigate('/contas-pagar')}>
+                    Ver em Contas a Pagar
+                  </Button>
+                )}
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </AppLayout>
+  );
+}
+
+function DetailRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex justify-between gap-4 py-2 border-b">
+      <span className="text-muted-foreground">{label}</span>
+      <span className="font-medium text-right">{value}</span>
+    </div>
   );
 }
 
