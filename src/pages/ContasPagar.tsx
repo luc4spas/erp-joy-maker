@@ -290,6 +290,31 @@ export default function ContasPagar() {
       <Dialog open={parcelasDialog} onOpenChange={setParcelasDialog}>
         <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Detalhamento de Pagamentos</DialogTitle></DialogHeader>
+          {selectedConta && (
+            <Card className="mb-4">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <Paperclip className="w-4 h-4" /> Anexos do Título
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="grid gap-4 md:grid-cols-2">
+                <AnexoUpload
+                  label="Nota Fiscal"
+                  kind="nota-fiscal"
+                  ownerId={selectedConta.id}
+                  currentUrl={selectedConta.nota_fiscal_url}
+                  onChange={(url) => updateContaAnexo(selectedConta.id, 'nota_fiscal_url', url)}
+                />
+                <AnexoUpload
+                  label="Boleto"
+                  kind="boleto"
+                  ownerId={selectedConta.id}
+                  currentUrl={selectedConta.boleto_url}
+                  onChange={(url) => updateContaAnexo(selectedConta.id, 'boleto_url', url)}
+                />
+              </CardContent>
+            </Card>
+          )}
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
@@ -299,6 +324,7 @@ export default function ContasPagar() {
                   <TableHead className="text-right">Valor</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Data Pagto</TableHead>
+                  <TableHead className="text-center">Comprovante</TableHead>
                   {canEdit && <TableHead className="text-center w-[300px]">Baixa de Pagamento</TableHead>}
                 </TableRow>
               </TableHeader>
@@ -310,6 +336,18 @@ export default function ContasPagar() {
                     <TableCell className="text-right font-medium">{formatCurrency(p.valor_original)}</TableCell>
                     <TableCell>{statusBadge(p.status)}</TableCell>
                     <TableCell>{p.data_pagamento ? format(new Date(p.data_pagamento + 'T12:00:00'), 'dd/MM/yyyy') : '-'}</TableCell>
+                    <TableCell>
+                      <div className="flex justify-center">
+                        <AnexoUpload
+                          label="Comprovante"
+                          kind="comprovante"
+                          ownerId={p.id}
+                          currentUrl={p.anexo_url}
+                          onChange={(url) => updateParcelaAnexo(p.id, url)}
+                          compact
+                        />
+                      </div>
+                    </TableCell>
                     {canEdit && (
                       <TableCell>
                         <div className="flex items-center justify-center gap-2">
