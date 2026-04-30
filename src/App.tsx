@@ -22,6 +22,7 @@ import Usuarios from "./pages/Usuarios";
 import Lancamentos from "./pages/Lancamentos";
 import FechamentoFolha from "./pages/FechamentoFolha";
 import FinancialDashboard from "./pages/FinancialDashboard";
+import SupplyChainDashboard from "./pages/SupplyChainDashboard";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -49,6 +50,7 @@ const App = () => (
               <Route path="/lancamentos" element={<ProtectedRoute module="folha_pagamento"><Lancamentos /></ProtectedRoute>} />
               <Route path="/fechamento-folha" element={<ProtectedRoute module="folha_pagamento"><FechamentoFolha /></ProtectedRoute>} />
               <Route path="/financeiro" element={<ProtectedRoute module="financeiro"><FinancialDashboard /></ProtectedRoute>} />
+              <Route path="/suprimentos" element={<ProtectedRoute><SupplyChainDashboard /></ProtectedRoute>} />
               <Route path="/empresas" element={<ProtectedRoute module="administracao"><Empresas /></ProtectedRoute>} />
               <Route path="/grupos-acesso" element={<ProtectedRoute module="administracao"><GruposAcesso /></ProtectedRoute>} />
               <Route path="/usuarios" element={<ProtectedRoute module="administracao"><Usuarios /></ProtectedRoute>} />
