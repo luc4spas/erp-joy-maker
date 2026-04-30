@@ -22,6 +22,7 @@ import {
   Wallet,
   ClipboardList,
   LineChart,
+  Boxes,
 } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
@@ -50,6 +51,7 @@ const navItems: NavItem[] = [
   { path: '/rateio', label: 'Rateio Semanal', icon: DollarSign, module: 'financeiro' },
   { path: '/contas-pagar', label: 'Contas a Pagar', icon: FileText, module: 'contas_pagar' },
   { path: '/fornecedores', label: 'Fornecedores', icon: Truck, module: 'contas_pagar' },
+  { path: '/suprimentos', label: 'Suprimentos', icon: Boxes },
   { path: '/lancamentos', label: 'Lançamentos', icon: Wallet, module: 'folha_pagamento' },
   { path: '/fechamento-folha', label: 'Fechamento Folha', icon: ClipboardList, module: 'folha_pagamento' },
   { path: '/empresas', label: 'Empresas', icon: Building2, module: 'administracao' },
