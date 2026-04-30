@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { usePermissions } from '@/hooks/usePermissions';
@@ -19,6 +19,7 @@ import { NovoFornecedorDialog } from '@/components/contas-pagar/NovoFornecedorDi
 import { GerarTituloForm } from '@/components/contas-pagar/GerarTituloForm';
 import { ParcelasPreview } from '@/components/contas-pagar/ParcelasPreview';
 import { AnexoUpload } from '@/components/contas-pagar/AnexoUpload';
+import { DataPagination } from '@/components/ui/data-pagination';
 
 interface ContaPagar {
   id: string;
@@ -59,6 +60,8 @@ export default function ContasPagar() {
   const [selectedContaId, setSelectedContaId] = useState<string>('');
   const [selectedConta, setSelectedConta] = useState<ContaPagar | null>(null);
   const [paymentDate, setPaymentDate] = useState<string>(format(new Date(), 'yyyy-MM-dd'));
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
 
   const canCreate = hasPermission('contas_pagar', 'create');
   const canEdit = hasPermission('contas_pagar', 'edit');
@@ -79,6 +82,18 @@ export default function ContasPagar() {
   useEffect(() => {
     if (user) { fetchContas(); fetchEmpresas(); fetchFornecedores(); }
   }, [user]);
+
+  const filteredContas = useMemo(
+    () => contas.filter(c => !filterFornecedor || (c.fornecedores?.nome || '').toLowerCase().includes(filterFornecedor.toLowerCase())),
+    [contas, filterFornecedor],
+  );
+
+  const pagedContas = useMemo(() => {
+    const start = (page - 1) * pageSize;
+    return filteredContas.slice(start, start + pageSize);
+  }, [filteredContas, page, pageSize]);
+
+  useEffect(() => { setPage(1); }, [filterFornecedor, filterStatus, pageSize]);
 
   const fetchContas = async () => {
     setLoading(true);
@@ -244,7 +259,7 @@ export default function ContasPagar() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {contas.filter(c => !filterFornecedor || (c.fornecedores?.nome || '').toLowerCase().includes(filterFornecedor.toLowerCase())).map(conta => (
+                      {pagedContas.map(conta => (
                         <TableRow key={conta.id}>
                           <TableCell className="font-mono text-xs">{conta.numero_documento || '-'}</TableCell>
                           <TableCell>{conta.fornecedores?.nome}</TableCell>
@@ -271,6 +286,15 @@ export default function ContasPagar() {
                     </TableBody>
                   </Table>
                 </div>
+              )}
+              {!loading && (
+                <DataPagination
+                  page={page}
+                  pageSize={pageSize}
+                  total={filteredContas.length}
+                  onPageChange={setPage}
+                  onPageSizeChange={setPageSize}
+                />
               )}
             </CardContent>
           </Card>
