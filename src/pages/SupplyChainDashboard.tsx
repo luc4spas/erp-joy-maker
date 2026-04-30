@@ -38,10 +38,13 @@ import {
   Check,
   X,
   Trash2,
+  ScrollText,
+  FileSearch,
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
+import { CotacaoTab } from '@/components/suprimentos/CotacaoTab';
 
 type Fornecedor = {
   id: string;
@@ -135,13 +138,38 @@ export default function SupplyChainDashboard() {
     fetchAll();
   }, []);
 
+  const kpiPendentes = solicitacoes.filter((s) => s.status === 'pendente').length;
+  const kpiCotacoes = solicitacoes.filter((s) => s.status === 'aprovada' || s.status === 'em_cotacao').length;
+  const kpiPOs = pedidos.length;
+
   return (
     <AppLayout
       title="Cadeia de Suprimentos"
       subtitle="Catálogo, solicitações, pedidos de compra e inventário"
     >
+      {/* KPIs */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+        {[
+          { label: 'Requisições Pendentes', value: kpiPendentes, icon: ClipboardList, color: 'text-amber-500' },
+          { label: 'Cotações Abertas', value: kpiCotacoes, icon: FileSearch, color: 'text-blue-500' },
+          { label: 'Pedidos de Compra', value: kpiPOs, icon: ScrollText, color: 'text-emerald-500' },
+        ].map((k) => (
+          <Card key={k.label}>
+            <CardContent className="p-4 flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center">
+                <k.icon className={`w-5 h-5 ${k.color}`} />
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">{k.label}</p>
+                <p className="text-2xl font-bold">{k.value}</p>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
       <Tabs defaultValue="catalogo" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 h-auto">
+        <TabsList className="grid w-full grid-cols-2 md:grid-cols-5 h-auto">
           <TabsTrigger value="catalogo" className="gap-2">
             <Package className="w-4 h-4" />
             Catálogo
@@ -149,6 +177,10 @@ export default function SupplyChainDashboard() {
           <TabsTrigger value="solicitacoes" className="gap-2">
             <ClipboardList className="w-4 h-4" />
             Solicitações
+          </TabsTrigger>
+          <TabsTrigger value="cotacao" className="gap-2">
+            <FileSearch className="w-4 h-4" />
+            Cotação
           </TabsTrigger>
           <TabsTrigger value="pedidos" className="gap-2">
             <ShoppingCart className="w-4 h-4" />
@@ -172,6 +204,15 @@ export default function SupplyChainDashboard() {
           <SolicitacoesTab
             insumos={insumos}
             solicitacoes={solicitacoes}
+            userId={user?.id}
+            onChanged={fetchAll}
+          />
+        </TabsContent>
+        <TabsContent value="cotacao">
+          <CotacaoTab
+            solicitacoes={solicitacoes}
+            insumos={insumos}
+            fornecedores={fornecedores}
             userId={user?.id}
             onChanged={fetchAll}
           />

@@ -4,6 +4,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Plus, FileText } from 'lucide-react';
+import { CategoriaCombobox } from '@/components/ui/categoria-combobox';
 
 interface FormData {
   empresa_id: string;
@@ -86,7 +87,12 @@ export function GerarTituloForm({ formData, setFormData, empresas, fornecedores,
 
           <div>
             <Label>Categoria</Label>
-            <Input value={formData.categoria} onChange={e => update('categoria', e.target.value)} placeholder="Ex: Mercadoria" />
+            <CategoriaCombobox
+              value={formData.categoria}
+              onChange={(v) => update('categoria', v)}
+              placeholder="Selecione ou crie uma categoria"
+              table="categorias_pagar"
+            />
           </div>
 
           <div>

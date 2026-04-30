@@ -35,6 +35,27 @@ export type Database = {
         }
         Relationships: []
       }
+      categorias_pagar: {
+        Row: {
+          created_at: string
+          id: string
+          nome: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          nome: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          nome?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       contas_pagar: {
         Row: {
           boleto_url: string | null
@@ -527,6 +548,27 @@ export type Database = {
         }
         Relationships: []
       }
+      suprimentos_categorias: {
+        Row: {
+          created_at: string
+          id: string
+          nome: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          nome: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          nome?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       suprimentos_contagens: {
         Row: {
           contagem_real: number
@@ -559,6 +601,77 @@ export type Database = {
           id?: string
           insumo_id?: string
           tipo?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      suprimentos_cotacao_itens: {
+        Row: {
+          cotacao_id: string
+          created_at: string
+          fornecedor_id: string
+          id: string
+          insumo_id: string
+          preco_atual: number | null
+          selecionado: boolean
+          ultimo_preco: number | null
+          user_id: string
+        }
+        Insert: {
+          cotacao_id: string
+          created_at?: string
+          fornecedor_id: string
+          id?: string
+          insumo_id: string
+          preco_atual?: number | null
+          selecionado?: boolean
+          ultimo_preco?: number | null
+          user_id: string
+        }
+        Update: {
+          cotacao_id?: string
+          created_at?: string
+          fornecedor_id?: string
+          id?: string
+          insumo_id?: string
+          preco_atual?: number | null
+          selecionado?: boolean
+          ultimo_preco?: number | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "suprimentos_cotacao_itens_cotacao_id_fkey"
+            columns: ["cotacao_id"]
+            isOneToOne: false
+            referencedRelation: "suprimentos_cotacoes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      suprimentos_cotacoes: {
+        Row: {
+          created_at: string
+          id: string
+          solicitacao_id: string
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          solicitacao_id: string
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          solicitacao_id?: string
+          status?: string
+          updated_at?: string
           user_id?: string
         }
         Relationships: []
@@ -599,9 +712,55 @@ export type Database = {
         }
         Relationships: []
       }
+      suprimentos_insumo_fornecedores: {
+        Row: {
+          created_at: string
+          fornecedor_id: string
+          id: string
+          insumo_id: string
+          preferencial: boolean
+          ultimo_preco: number | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          fornecedor_id: string
+          id?: string
+          insumo_id: string
+          preferencial?: boolean
+          ultimo_preco?: number | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          fornecedor_id?: string
+          id?: string
+          insumo_id?: string
+          preferencial?: boolean
+          ultimo_preco?: number | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "suprimentos_insumo_fornecedores_fornecedor_id_fkey"
+            columns: ["fornecedor_id"]
+            isOneToOne: false
+            referencedRelation: "suprimentos_fornecedores"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "suprimentos_insumo_fornecedores_insumo_id_fkey"
+            columns: ["insumo_id"]
+            isOneToOne: false
+            referencedRelation: "suprimentos_insumos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       suprimentos_insumos: {
         Row: {
           ativo: boolean
+          categoria_id: string | null
           created_at: string
           critico: boolean
           estoque_sistemico: number
@@ -614,6 +773,7 @@ export type Database = {
         }
         Insert: {
           ativo?: boolean
+          categoria_id?: string | null
           created_at?: string
           critico?: boolean
           estoque_sistemico?: number
@@ -626,6 +786,7 @@ export type Database = {
         }
         Update: {
           ativo?: boolean
+          categoria_id?: string | null
           created_at?: string
           critico?: boolean
           estoque_sistemico?: number
