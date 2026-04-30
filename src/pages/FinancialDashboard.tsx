@@ -281,10 +281,13 @@ export default function FinancialDashboard() {
   const totals = useMemo(() => {
     const vencidas = rows.filter((r) => r.status === 'vencido');
     const venceHoje = rows.filter((r) => r.status === 'vence_hoje');
-    const naoPagas = rows.filter((r) => r.status !== 'pago');
-    const totalSaidas = naoPagas.reduce((s, r) => s + r.valor, 0);
+    // Total de saídas do mês = tudo que sai do caixa (pago + a pagar) dentro da competência
+    const totalSaidas = rows.reduce((s, r) => s + r.valor, 0);
+    const totalPagas = rows.filter((r) => r.status === 'pago').reduce((s, r) => s + r.valor, 0);
+    const totalAPagar = rows.filter((r) => r.status !== 'pago').reduce((s, r) => s + r.valor, 0);
     const cmv = faturamentoMes * 0.32; // estimativa padrão de 32% — ajustar quando houver coluna real
-    const saldo = faturamentoMes - totalSaidas - cmv;
+    // Saldo real em caixa = faturamento − saídas pagas (despesas + comissões + parcelas pagas)
+    const saldo = faturamentoMes - totalPagas;
     return {
       totalVencidas: vencidas.reduce((s, r) => s + r.valor, 0),
       qtdVencidas: vencidas.length,
@@ -292,6 +295,8 @@ export default function FinancialDashboard() {
       qtdVenceHoje: venceHoje.length,
       cmv,
       totalSaidas,
+      totalPagas,
+      totalAPagar,
       saldo,
     };
   }, [rows, faturamentoMes]);
@@ -299,9 +304,8 @@ export default function FinancialDashboard() {
   const projection = useMemo(() => {
     const t = today();
     const days: { dia: string; Receitas: number; Saidas: number; Saldo: number }[] = [];
-    const mediaDiaria = faturamentoMes
-      ? faturamentoMes / Math.max(1, new Date().getDate())
-      : 0;
+    const diasDecorridos = Math.max(1, new Date(competenciaRange.fim).getDate());
+    const mediaDiaria = faturamentoMes ? faturamentoMes / diasDecorridos : 0;
     for (let i = 0; i < 7; i++) {
       const d = addDays(t, i);
       const iso = format(d, 'yyyy-MM-dd');
@@ -317,25 +321,41 @@ export default function FinancialDashboard() {
       });
     }
     return days;
-  }, [rows, faturamentoMes]);
+  }, [rows, faturamentoMes, competenciaRange]);
 
   return (
     <AppLayout title="Dashboard Financeiro" subtitle="Centro de controle do fluxo de caixa">
       <div className="space-y-6">
-        {/* Seletor de Unidade */}
+        {/* Seletor de Unidade + Mês de Competência */}
         <div className="flex items-center justify-between gap-4 flex-wrap">
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-muted-foreground">Unidade:</span>
-            <Select value={unidade} onValueChange={(v) => setUnidade(v as Unidade)}>
-              <SelectTrigger className="w-[240px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="consolidado">Visão Consolidada</SelectItem>
-                <SelectItem value="japa">Unidade Japonesa</SelectItem>
-                <SelectItem value="trattoria">Unidade Italiana</SelectItem>
-              </SelectContent>
-            </Select>
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">Unidade:</span>
+              <Select value={unidade} onValueChange={(v) => setUnidade(v as Unidade)}>
+                <SelectTrigger className="w-[220px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="consolidado">Visão Consolidada</SelectItem>
+                  <SelectItem value="japa">Unidade Japonesa</SelectItem>
+                  <SelectItem value="trattoria">Unidade Italiana</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center gap-2">
+              <CalendarIcon className="w-4 h-4 text-muted-foreground" />
+              <span className="text-sm text-muted-foreground">Competência:</span>
+              <Select value={competencia} onValueChange={setCompetencia}>
+                <SelectTrigger className="w-[220px] capitalize">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {monthOptions.map((m) => (
+                    <SelectItem key={m.value} value={m.value} className="capitalize">{m.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </div>
 
