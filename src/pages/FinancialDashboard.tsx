@@ -372,7 +372,7 @@ export default function FinancialDashboard() {
                 value={formatCurrency(faturamentoMes)}
                 icon={<TrendingUp className="w-5 h-5" />}
                 tone="emerald"
-                hint="Mês atual"
+                hint="Mês de competência"
               />
               <KpiCard
                 title="CMV Estimado"
@@ -386,13 +386,14 @@ export default function FinancialDashboard() {
                 value={formatCurrency(totals.totalSaidas)}
                 icon={<ArrowDownCircle className="w-5 h-5" />}
                 tone="red"
-                hint="Contas + despesas em aberto"
+                hint="Contas + despesas + comissões"
               />
               <KpiCard
                 title="Saldo Atual"
                 value={formatCurrency(totals.saldo)}
                 icon={<Wallet className="w-5 h-5" />}
                 tone={totals.saldo >= 0 ? 'blue' : 'red'}
+                hint="Faturamento − saídas pagas"
               />
             </div>
 
