@@ -37,6 +37,7 @@ export type Database = {
       }
       contas_pagar: {
         Row: {
+          boleto_url: string | null
           categoria: string | null
           centro_custo: string | null
           created_at: string
@@ -44,6 +45,7 @@ export type Database = {
           empresa_id: string
           fornecedor_id: string
           id: string
+          nota_fiscal_url: string | null
           num_parcelas: number
           numero_documento: string | null
           observacao: string | null
@@ -51,6 +53,7 @@ export type Database = {
           valor_total: number
         }
         Insert: {
+          boleto_url?: string | null
           categoria?: string | null
           centro_custo?: string | null
           created_at?: string
@@ -58,6 +61,7 @@ export type Database = {
           empresa_id: string
           fornecedor_id: string
           id?: string
+          nota_fiscal_url?: string | null
           num_parcelas?: number
           numero_documento?: string | null
           observacao?: string | null
@@ -65,6 +69,7 @@ export type Database = {
           valor_total?: number
         }
         Update: {
+          boleto_url?: string | null
           categoria?: string | null
           centro_custo?: string | null
           created_at?: string
@@ -72,6 +77,7 @@ export type Database = {
           empresa_id?: string
           fornecedor_id?: string
           id?: string
+          nota_fiscal_url?: string | null
           num_parcelas?: number
           numero_documento?: string | null
           observacao?: string | null
