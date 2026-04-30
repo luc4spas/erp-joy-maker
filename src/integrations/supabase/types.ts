@@ -527,6 +527,236 @@ export type Database = {
         }
         Relationships: []
       }
+      suprimentos_contagens: {
+        Row: {
+          contagem_real: number
+          created_at: string
+          data: string
+          diferenca: number
+          estoque_sistemico: number
+          id: string
+          insumo_id: string
+          tipo: string
+          user_id: string
+        }
+        Insert: {
+          contagem_real?: number
+          created_at?: string
+          data?: string
+          diferenca?: number
+          estoque_sistemico?: number
+          id?: string
+          insumo_id: string
+          tipo?: string
+          user_id: string
+        }
+        Update: {
+          contagem_real?: number
+          created_at?: string
+          data?: string
+          diferenca?: number
+          estoque_sistemico?: number
+          id?: string
+          insumo_id?: string
+          tipo?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      suprimentos_fornecedores: {
+        Row: {
+          ativo: boolean
+          categoria: string | null
+          contato: string | null
+          created_at: string
+          id: string
+          nome: string
+          prazo_entrega: number | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          ativo?: boolean
+          categoria?: string | null
+          contato?: string | null
+          created_at?: string
+          id?: string
+          nome: string
+          prazo_entrega?: number | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          ativo?: boolean
+          categoria?: string | null
+          contato?: string | null
+          created_at?: string
+          id?: string
+          nome?: string
+          prazo_entrega?: number | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      suprimentos_insumos: {
+        Row: {
+          ativo: boolean
+          created_at: string
+          critico: boolean
+          estoque_sistemico: number
+          fornecedor_id: string | null
+          id: string
+          nome: string
+          unidade: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          ativo?: boolean
+          created_at?: string
+          critico?: boolean
+          estoque_sistemico?: number
+          fornecedor_id?: string | null
+          id?: string
+          nome: string
+          unidade?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          ativo?: boolean
+          created_at?: string
+          critico?: boolean
+          estoque_sistemico?: number
+          fornecedor_id?: string | null
+          id?: string
+          nome?: string
+          unidade?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      suprimentos_pedido_itens: {
+        Row: {
+          created_at: string
+          id: string
+          insumo_id: string
+          pedido_id: string
+          preco_unitario: number
+          quantidade: number
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          insumo_id: string
+          pedido_id: string
+          preco_unitario?: number
+          quantidade?: number
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          insumo_id?: string
+          pedido_id?: string
+          preco_unitario?: number
+          quantidade?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "suprimentos_pedido_itens_pedido_id_fkey"
+            columns: ["pedido_id"]
+            isOneToOne: false
+            referencedRelation: "suprimentos_pedidos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      suprimentos_pedidos: {
+        Row: {
+          created_at: string
+          data_pedido: string
+          data_recebimento: string | null
+          fornecedor_id: string
+          id: string
+          observacao: string | null
+          status: string
+          total: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          data_pedido?: string
+          data_recebimento?: string | null
+          fornecedor_id: string
+          id?: string
+          observacao?: string | null
+          status?: string
+          total?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          data_pedido?: string
+          data_recebimento?: string | null
+          fornecedor_id?: string
+          id?: string
+          observacao?: string | null
+          status?: string
+          total?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      suprimentos_solicitacoes: {
+        Row: {
+          colaborador: string
+          created_at: string
+          data: string
+          id: string
+          insumo_id: string
+          observacao: string | null
+          quantidade: number
+          setor: string
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          colaborador: string
+          created_at?: string
+          data?: string
+          id?: string
+          insumo_id: string
+          observacao?: string | null
+          quantidade?: number
+          setor: string
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          colaborador?: string
+          created_at?: string
+          data?: string
+          id?: string
+          insumo_id?: string
+          observacao?: string | null
+          quantidade?: number
+          setor?: string
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_access_groups: {
         Row: {
           created_at: string
