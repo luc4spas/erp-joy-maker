@@ -36,6 +36,8 @@ import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 import { CategoriaCombobox } from '@/components/ui/categoria-combobox';
 import { cn } from '@/lib/utils';
+import { useMockRole } from '@/contexts/MockRoleContext';
+import { UserCircle2, Building2 } from 'lucide-react';
 
 type Insumo = {
   id: string;
@@ -91,6 +93,7 @@ function StatusBadge({ status }: { status: string }) {
 /* =================== Página principal =================== */
 export default function OperacionalRequisicoes() {
   const { user } = useAuth();
+  const { profile } = useMockRole();
   const [insumos, setInsumos] = useState<Insumo[]>([]);
   const [categorias, setCategorias] = useState<{ id: string; nome: string }[]>([]);
   const [minhas, setMinhas] = useState<Solicitacao[]>([]);
@@ -129,6 +132,8 @@ export default function OperacionalRequisicoes() {
             insumos={insumos}
             categorias={categorias}
             userId={user?.id}
+            colaborador={profile.nome}
+            setor={profile.setor}
             onSent={fetchAll}
           />
         </TabsContent>
@@ -145,16 +150,18 @@ function NovaRequisicaoWizard({
   insumos,
   categorias,
   userId,
+  colaborador,
+  setor,
   onSent,
 }: {
   insumos: Insumo[];
   categorias: { id: string; nome: string }[];
   userId?: string;
+  colaborador: string;
+  setor: string;
   onSent: () => void;
 }) {
   const [step, setStep] = useState(1);
-  const [colaborador, setColaborador] = useState('');
-  const [setor, setSetor] = useState('');
   const [categoriaId, setCategoriaId] = useState('');
   const [quantidades, setQuantidades] = useState<Record<string, string>>({});
   const [enviando, setEnviando] = useState(false);
@@ -175,7 +182,7 @@ function NovaRequisicaoWizard({
     [quantidades, insumos],
   );
 
-  const podeAvancar1 = !!categoriaId && !!colaborador.trim() && !!setor;
+  const podeAvancar1 = !!categoriaId;
   const podeAvancar2 = itensSelecionados.length > 0;
 
   const enviar = async () => {
@@ -183,7 +190,7 @@ function NovaRequisicaoWizard({
     setEnviando(true);
     const registros = itensSelecionados.map((it) => ({
       user_id: userId,
-      colaborador: colaborador.trim(),
+      colaborador,
       setor,
       insumo_id: it.id,
       quantidade: it.quantidade,
@@ -209,6 +216,24 @@ function NovaRequisicaoWizard({
         <CardDescription>Fluxo guiado em 3 etapas</CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
+        {/* Banner do requisitante (auto-preenchido) */}
+        <div className="flex items-center gap-3 rounded-lg border border-primary/20 bg-primary/5 px-4 py-3">
+          <div className="w-10 h-10 rounded-full bg-primary/15 flex items-center justify-center shrink-0">
+            <UserCircle2 className="w-5 h-5 text-primary" />
+          </div>
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+            <div>
+              <span className="text-xs text-muted-foreground">Requisitante: </span>
+              <span className="font-semibold text-foreground">{colaborador}</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <Building2 className="w-3.5 h-3.5 text-muted-foreground" />
+              <span className="text-xs text-muted-foreground">Setor: </span>
+              <span className="font-semibold text-foreground">{setor}</span>
+            </div>
+          </div>
+        </div>
+
         {/* Stepper */}
         <div className="flex items-center justify-between gap-2">
           {[
@@ -241,29 +266,8 @@ function NovaRequisicaoWizard({
 
         {/* Passo 1 */}
         {step === 1 && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4">
             <div className="space-y-2">
-              <Label>Colaborador *</Label>
-              <Input
-                value={colaborador}
-                onChange={(e) => setColaborador(e.target.value)}
-                placeholder="Seu nome"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Setor *</Label>
-              <Select value={setor} onValueChange={setSetor}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Cozinha Japonesa">Cozinha Japonesa</SelectItem>
-                  <SelectItem value="Cozinha Italiana">Cozinha Italiana</SelectItem>
-                  <SelectItem value="Bar">Bar</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2 md:col-span-2">
               <Label>Categoria do Produto *</Label>
               <Select value={categoriaId} onValueChange={setCategoriaId}>
                 <SelectTrigger>
@@ -283,6 +287,9 @@ function NovaRequisicaoWizard({
                   ))}
                 </SelectContent>
               </Select>
+              <p className="text-xs text-muted-foreground">
+                O nome do colaborador e o setor são preenchidos automaticamente pelo perfil logado.
+              </p>
             </div>
           </div>
         )}
