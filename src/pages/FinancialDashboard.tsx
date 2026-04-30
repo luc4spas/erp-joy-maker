@@ -47,7 +47,8 @@ import {
   Bar,
   Line,
 } from 'recharts';
-import { format, startOfMonth, endOfMonth, addDays, isSameDay, isBefore, parseISO } from 'date-fns';
+import { format, startOfMonth, endOfMonth, addDays, isSameDay, isBefore, parseISO, subMonths } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 import { useNavigate } from 'react-router-dom';
 import {
   Dialog,
@@ -61,7 +62,7 @@ import { NovaDespesaDialog } from '@/components/financeiro/NovaDespesaDialog';
 
 type Unidade = 'consolidado' | 'japa' | 'trattoria';
 type StatusConta = 'vencido' | 'vence_hoje' | 'a_vencer' | 'pago';
-type TipoConta = 'conta_fixa' | 'despesa_diaria' | 'fornecedor';
+type TipoConta = 'conta_fixa' | 'despesa_diaria' | 'fornecedor' | 'comissao';
 
 interface ContaRow {
   id: string;
@@ -77,6 +78,7 @@ const tipoLabel: Record<TipoConta, string> = {
   conta_fixa: 'Conta Fixa',
   despesa_diaria: 'Despesa Diária',
   fornecedor: 'Fornecedor',
+  comissao: 'Comissão',
 };
 
 const statusBadge = (s: StatusConta) => {
@@ -114,6 +116,8 @@ const computeStatus = (vencimento: string, dataPagamento: string | null): Status
 export default function FinancialDashboard() {
   const navigate = useNavigate();
   const [unidade, setUnidade] = useState<Unidade>('consolidado');
+  // Mês de competência (yyyy-MM)
+  const [competencia, setCompetencia] = useState<string>(format(new Date(), 'yyyy-MM'));
   const [busca, setBusca] = useState('');
   const [filtroStatus, setFiltroStatus] = useState<'todos' | StatusConta>('todos');
   const [filtroTipo, setFiltroTipo] = useState<'todos' | TipoConta>('todos');
@@ -135,17 +139,42 @@ export default function FinancialDashboard() {
   useEffect(() => {
     void fetchAll();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [unidade]);
+  }, [unidade, competencia]);
+
+  const competenciaRange = useMemo(() => {
+    const ref = parseISO(`${competencia}-01`);
+    return {
+      ini: format(startOfMonth(ref), 'yyyy-MM-dd'),
+      fim: format(endOfMonth(ref), 'yyyy-MM-dd'),
+      ref,
+    };
+  }, [competencia]);
+
+  const monthOptions = useMemo(() => {
+    const opts: { value: string; label: string }[] = [];
+    for (let i = 0; i < 12; i++) {
+      const d = subMonths(new Date(), i);
+      opts.push({
+        value: format(d, 'yyyy-MM'),
+        label: format(d, "MMMM 'de' yyyy", { locale: ptBR }),
+      });
+    }
+    return opts;
+  }, []);
 
   const fetchAll = async () => {
     setIsLoading(true);
     try {
+      const { ini, fim } = competenciaRange;
+
       // ---------- Parcelas (Contas a Pagar) ----------
       const { data: parcelas, error: pErr } = await supabase
         .from('parcelas_pagar')
         .select(
           'id, valor_original, data_vencimento, data_pagamento, status, conta_pagar:contas_pagar!inner(id, numero_documento, categoria, fornecedor:fornecedores(nome))',
-        );
+        )
+        .gte('data_vencimento', ini)
+        .lte('data_vencimento', fim);
       if (pErr) throw pErr;
 
       const parcelaRows: ContaRow[] = (parcelas || []).map((p: any) => {
@@ -169,7 +198,9 @@ export default function FinancialDashboard() {
       // ---------- Despesas Diárias ----------
       const { data: despesas, error: dErr } = await supabase
         .from('despesas')
-        .select('id, data, descricao, valor, categoria');
+        .select('id, data, descricao, valor, categoria')
+        .gte('data', ini)
+        .lte('data', fim);
       if (dErr) throw dErr;
 
       const despesaRows: ContaRow[] = (despesas || []).map((d: any) => ({
@@ -183,11 +214,29 @@ export default function FinancialDashboard() {
         status: computeStatus(d.data, d.data),
       }));
 
-      setRows([...parcelaRows, ...despesaRows]);
+      // ---------- Comissões pagas (pagamentos_funcionarios.pago = true) ----------
+      const { data: comissoes, error: cErr } = await supabase
+        .from('pagamentos_funcionarios')
+        .select('id, data, valor, pago, funcionario:funcionarios(nome, setor)')
+        .eq('pago', true)
+        .gte('data', ini)
+        .lte('data', fim);
+      if (cErr) throw cErr;
 
-      // ---------- Faturamento (Fechamentos) — mês atual ----------
-      const ini = format(startOfMonth(new Date()), 'yyyy-MM-dd');
-      const fim = format(endOfMonth(new Date()), 'yyyy-MM-dd');
+      const comissaoRows: ContaRow[] = (comissoes || []).map((c: any) => ({
+        id: `cm-${c.id}`,
+        descricao: `Comissão • ${c.funcionario?.nome || 'Colaborador'}`,
+        fornecedor: c.funcionario?.setor || 'Comissão',
+        tipo: 'comissao',
+        vencimento: c.data,
+        valor: num(c.valor),
+        // Comissão paga conta como saída efetiva no caixa do dia
+        status: computeStatus(c.data, c.data),
+      }));
+
+      setRows([...parcelaRows, ...despesaRows, ...comissaoRows]);
+
+      // ---------- Faturamento (Fechamentos) — mês de competência ----------
       const { data: fechs } = await supabase
         .from('fechamentos')
         .select('japa_total, trattoria_total, hippocampus_total, total_geral')
@@ -232,10 +281,13 @@ export default function FinancialDashboard() {
   const totals = useMemo(() => {
     const vencidas = rows.filter((r) => r.status === 'vencido');
     const venceHoje = rows.filter((r) => r.status === 'vence_hoje');
-    const naoPagas = rows.filter((r) => r.status !== 'pago');
-    const totalSaidas = naoPagas.reduce((s, r) => s + r.valor, 0);
+    // Total de saídas do mês = tudo que sai do caixa (pago + a pagar) dentro da competência
+    const totalSaidas = rows.reduce((s, r) => s + r.valor, 0);
+    const totalPagas = rows.filter((r) => r.status === 'pago').reduce((s, r) => s + r.valor, 0);
+    const totalAPagar = rows.filter((r) => r.status !== 'pago').reduce((s, r) => s + r.valor, 0);
     const cmv = faturamentoMes * 0.32; // estimativa padrão de 32% — ajustar quando houver coluna real
-    const saldo = faturamentoMes - totalSaidas - cmv;
+    // Saldo real em caixa = faturamento − saídas pagas (despesas + comissões + parcelas pagas)
+    const saldo = faturamentoMes - totalPagas;
     return {
       totalVencidas: vencidas.reduce((s, r) => s + r.valor, 0),
       qtdVencidas: vencidas.length,
@@ -243,6 +295,8 @@ export default function FinancialDashboard() {
       qtdVenceHoje: venceHoje.length,
       cmv,
       totalSaidas,
+      totalPagas,
+      totalAPagar,
       saldo,
     };
   }, [rows, faturamentoMes]);
@@ -250,9 +304,8 @@ export default function FinancialDashboard() {
   const projection = useMemo(() => {
     const t = today();
     const days: { dia: string; Receitas: number; Saidas: number; Saldo: number }[] = [];
-    const mediaDiaria = faturamentoMes
-      ? faturamentoMes / Math.max(1, new Date().getDate())
-      : 0;
+    const diasDecorridos = Math.max(1, new Date(competenciaRange.fim).getDate());
+    const mediaDiaria = faturamentoMes ? faturamentoMes / diasDecorridos : 0;
     for (let i = 0; i < 7; i++) {
       const d = addDays(t, i);
       const iso = format(d, 'yyyy-MM-dd');
@@ -268,25 +321,41 @@ export default function FinancialDashboard() {
       });
     }
     return days;
-  }, [rows, faturamentoMes]);
+  }, [rows, faturamentoMes, competenciaRange]);
 
   return (
     <AppLayout title="Dashboard Financeiro" subtitle="Centro de controle do fluxo de caixa">
       <div className="space-y-6">
-        {/* Seletor de Unidade */}
+        {/* Seletor de Unidade + Mês de Competência */}
         <div className="flex items-center justify-between gap-4 flex-wrap">
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-muted-foreground">Unidade:</span>
-            <Select value={unidade} onValueChange={(v) => setUnidade(v as Unidade)}>
-              <SelectTrigger className="w-[240px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="consolidado">Visão Consolidada</SelectItem>
-                <SelectItem value="japa">Unidade Japonesa</SelectItem>
-                <SelectItem value="trattoria">Unidade Italiana</SelectItem>
-              </SelectContent>
-            </Select>
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">Unidade:</span>
+              <Select value={unidade} onValueChange={(v) => setUnidade(v as Unidade)}>
+                <SelectTrigger className="w-[220px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="consolidado">Visão Consolidada</SelectItem>
+                  <SelectItem value="japa">Unidade Japonesa</SelectItem>
+                  <SelectItem value="trattoria">Unidade Italiana</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center gap-2">
+              <CalendarIcon className="w-4 h-4 text-muted-foreground" />
+              <span className="text-sm text-muted-foreground">Competência:</span>
+              <Select value={competencia} onValueChange={setCompetencia}>
+                <SelectTrigger className="w-[220px] capitalize">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {monthOptions.map((m) => (
+                    <SelectItem key={m.value} value={m.value} className="capitalize">{m.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </div>
 
@@ -303,7 +372,7 @@ export default function FinancialDashboard() {
                 value={formatCurrency(faturamentoMes)}
                 icon={<TrendingUp className="w-5 h-5" />}
                 tone="emerald"
-                hint="Mês atual"
+                hint="Mês de competência"
               />
               <KpiCard
                 title="CMV Estimado"
@@ -317,13 +386,14 @@ export default function FinancialDashboard() {
                 value={formatCurrency(totals.totalSaidas)}
                 icon={<ArrowDownCircle className="w-5 h-5" />}
                 tone="red"
-                hint="Contas + despesas em aberto"
+                hint="Contas + despesas + comissões"
               />
               <KpiCard
                 title="Saldo Atual"
                 value={formatCurrency(totals.saldo)}
                 icon={<Wallet className="w-5 h-5" />}
                 tone={totals.saldo >= 0 ? 'blue' : 'red'}
+                hint="Faturamento − saídas pagas"
               />
             </div>
 
