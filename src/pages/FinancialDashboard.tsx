@@ -59,6 +59,7 @@ import {
 import { DataPagination } from '@/components/ui/data-pagination';
 import { NovaContaPagarDialog } from '@/components/financeiro/NovaContaPagarDialog';
 import { NovaDespesaDialog } from '@/components/financeiro/NovaDespesaDialog';
+import { DetalhesContaDialog } from '@/components/financeiro/DetalhesContaDialog';
 
 type Unidade = 'consolidado' | 'japa' | 'trattoria';
 type StatusConta = 'vencido' | 'vence_hoje' | 'a_vencer' | 'pago';
@@ -66,6 +67,8 @@ type TipoConta = 'conta_fixa' | 'despesa_diaria' | 'fornecedor' | 'comissao';
 
 interface ContaRow {
   id: string;
+  /** When tipo === 'conta_fixa' | 'fornecedor', this is the parent contas_pagar id */
+  contaPagarId?: string;
   descricao: string;
   fornecedor: string;
   tipo: TipoConta;
@@ -131,6 +134,12 @@ export default function FinancialDashboard() {
   const [novaContaOpen, setNovaContaOpen] = useState(false);
   const [novaDespesaOpen, setNovaDespesaOpen] = useState(false);
   const [detalhesRow, setDetalhesRow] = useState<ContaRow | null>(null);
+  const [detalhesContaId, setDetalhesContaId] = useState<string | null>(null);
+
+  // Filtros do gráfico
+  const [chartRange, setChartRange] = useState<'7' | '15' | '30'>('7');
+  const [chartTipos, setChartTipos] = useState<'todos' | 'parcelas' | 'despesas' | 'comissoes'>('todos');
+  const [chartView, setChartView] = useState<'diario' | 'acumulado'>('diario');
 
   // Paginação
   const [page, setPage] = useState(1);
@@ -186,6 +195,7 @@ export default function FinancialDashboard() {
         const doc = p.conta_pagar?.numero_documento || '';
         return {
           id: `pg-${p.id}`,
+          contaPagarId: p.conta_pagar?.id,
           descricao: doc ? `${fornecedor} • ${doc}` : fornecedor,
           fornecedor,
           tipo,
@@ -303,25 +313,39 @@ export default function FinancialDashboard() {
 
   const projection = useMemo(() => {
     const t = today();
+    const totalDays = parseInt(chartRange);
     const days: { dia: string; Receitas: number; Saidas: number; Saldo: number }[] = [];
     const diasDecorridos = Math.max(1, new Date(competenciaRange.fim).getDate());
     const mediaDiaria = faturamentoMes ? faturamentoMes / diasDecorridos : 0;
-    for (let i = 0; i < 7; i++) {
+    let acumReceita = 0;
+    let acumSaida = 0;
+    for (let i = 0; i < totalDays; i++) {
       const d = addDays(t, i);
       const iso = format(d, 'yyyy-MM-dd');
-      const saidas = rows
+      const saidasDia = rows
         .filter((r) => r.status !== 'pago' && r.vencimento === iso)
+        .filter((r) => {
+          if (chartTipos === 'todos') return true;
+          if (chartTipos === 'parcelas') return r.tipo === 'fornecedor' || r.tipo === 'conta_fixa';
+          if (chartTipos === 'despesas') return r.tipo === 'despesa_diaria';
+          if (chartTipos === 'comissoes') return r.tipo === 'comissao';
+          return true;
+        })
         .reduce((s, r) => s + r.valor, 0);
-      const receita = Math.round(mediaDiaria);
+      const receitaDia = Math.round(mediaDiaria);
+      acumReceita += receitaDia;
+      acumSaida += saidasDia;
+      const Receitas = chartView === 'acumulado' ? acumReceita : receitaDia;
+      const Saidas = chartView === 'acumulado' ? Math.round(acumSaida) : Math.round(saidasDia);
       days.push({
         dia: format(d, 'dd/MM'),
-        Receitas: receita,
-        Saidas: Math.round(saidas),
-        Saldo: Math.round(receita - saidas),
+        Receitas,
+        Saidas,
+        Saldo: Math.round(Receitas - Saidas),
       });
     }
     return days;
-  }, [rows, faturamentoMes, competenciaRange]);
+  }, [rows, faturamentoMes, competenciaRange, chartRange, chartTipos, chartView]);
 
   return (
     <AppLayout title="Dashboard Financeiro" subtitle="Centro de controle do fluxo de caixa">
@@ -429,10 +453,38 @@ export default function FinancialDashboard() {
             {/* Gráfico Projeção */}
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <TrendingUp className="w-5 h-5 text-primary" />
-                  Projeção de Saídas vs. Receitas — Próximos 7 dias
-                </CardTitle>
+                <div className="flex items-center justify-between gap-3 flex-wrap">
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <TrendingUp className="w-5 h-5 text-primary" />
+                    Projeção de Saídas vs. Receitas — Próximos {chartRange} dias
+                  </CardTitle>
+                  <div className="flex flex-wrap gap-2">
+                    <Select value={chartRange} onValueChange={(v) => setChartRange(v as any)}>
+                      <SelectTrigger className="w-[140px] h-9"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="7">Próx. 7 dias</SelectItem>
+                        <SelectItem value="15">Próx. 15 dias</SelectItem>
+                        <SelectItem value="30">Próx. 30 dias</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Select value={chartTipos} onValueChange={(v) => setChartTipos(v as any)}>
+                      <SelectTrigger className="w-[170px] h-9"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="todos">Todas as saídas</SelectItem>
+                        <SelectItem value="parcelas">Apenas contas a pagar</SelectItem>
+                        <SelectItem value="despesas">Apenas despesas</SelectItem>
+                        <SelectItem value="comissoes">Apenas comissões</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Select value={chartView} onValueChange={(v) => setChartView(v as any)}>
+                      <SelectTrigger className="w-[140px] h-9"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="diario">Diário</SelectItem>
+                        <SelectItem value="acumulado">Acumulado</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
               </CardHeader>
               <CardContent>
                 <div className="h-[320px] w-full">
@@ -567,7 +619,17 @@ export default function FinancialDashboard() {
                               </TableCell>
                               <TableCell>{statusBadge(r.status)}</TableCell>
                               <TableCell className="text-center">
-                                <Button variant="ghost" size="sm" onClick={() => setDetalhesRow(r)}>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => {
+                                    if ((r.tipo === 'fornecedor' || r.tipo === 'conta_fixa') && r.contaPagarId) {
+                                      setDetalhesContaId(r.contaPagarId);
+                                    } else {
+                                      setDetalhesRow(r);
+                                    }
+                                  }}
+                                >
                                   <Eye className="w-4 h-4" />
                                 </Button>
                               </TableCell>
@@ -593,6 +655,13 @@ export default function FinancialDashboard() {
       {/* Modais inline */}
       <NovaContaPagarDialog open={novaContaOpen} onOpenChange={setNovaContaOpen} onSaved={fetchAll} />
       <NovaDespesaDialog open={novaDespesaOpen} onOpenChange={setNovaDespesaOpen} onSaved={fetchAll} />
+
+      <DetalhesContaDialog
+        open={!!detalhesContaId}
+        onOpenChange={(v) => !v && setDetalhesContaId(null)}
+        contaId={detalhesContaId}
+        onChanged={fetchAll}
+      />
 
       <Dialog open={!!detalhesRow} onOpenChange={(v) => !v && setDetalhesRow(null)}>
         <DialogContent className="max-w-lg">
