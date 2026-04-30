@@ -12,12 +12,13 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Loader2, FileText, Eye, Trash2 } from 'lucide-react';
+import { Loader2, FileText, Eye, Trash2, Paperclip } from 'lucide-react';
 import { format, addMonths, setDate } from 'date-fns';
 import { formatCurrency } from '@/lib/processData';
 import { NovoFornecedorDialog } from '@/components/contas-pagar/NovoFornecedorDialog';
 import { GerarTituloForm } from '@/components/contas-pagar/GerarTituloForm';
 import { ParcelasPreview } from '@/components/contas-pagar/ParcelasPreview';
+import { AnexoUpload } from '@/components/contas-pagar/AnexoUpload';
 
 interface ContaPagar {
   id: string;
@@ -27,6 +28,8 @@ interface ContaPagar {
   categoria: string | null;
   centro_custo: string | null;
   created_at: string;
+  nota_fiscal_url: string | null;
+  boleto_url: string | null;
   fornecedores: { nome: string } | null;
   empresas: { nome: string } | null;
 }
@@ -39,6 +42,7 @@ interface Parcela {
   data_vencimento: string;
   data_pagamento: string | null;
   status: 'pendente' | 'pago' | 'atrasado';
+  anexo_url: string | null;
 }
 
 export default function ContasPagar() {
@@ -53,6 +57,7 @@ export default function ContasPagar() {
   const [parcelasDialog, setParcelasDialog] = useState(false);
   const [selectedContaParcelas, setSelectedContaParcelas] = useState<Parcela[]>([]);
   const [selectedContaId, setSelectedContaId] = useState<string>('');
+  const [selectedConta, setSelectedConta] = useState<ContaPagar | null>(null);
   const [paymentDate, setPaymentDate] = useState<string>(format(new Date(), 'yyyy-MM-dd'));
 
   const canCreate = hasPermission('contas_pagar', 'create');
@@ -150,6 +155,7 @@ export default function ContasPagar() {
     const { data } = await supabase.from('parcelas_pagar').select('*').eq('conta_pagar_id', contaId).order('numero_parcela');
     setSelectedContaParcelas((data as any) || []);
     setSelectedContaId(contaId);
+    setSelectedConta(contas.find(c => c.id === contaId) || null);
     setParcelasDialog(true);
   };
 
@@ -169,6 +175,25 @@ export default function ContasPagar() {
     const { error } = await supabase.from('contas_pagar').delete().eq('id', id);
     if (error) toast({ title: 'Erro ao excluir', variant: 'destructive' });
     else { toast({ title: 'Conta excluída!' }); fetchContas(); }
+  };
+
+  const updateContaAnexo = async (contaId: string, field: 'nota_fiscal_url' | 'boleto_url', url: string | null) => {
+    const { error } = await supabase.from('contas_pagar').update({ [field]: url }).eq('id', contaId);
+    if (error) {
+      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
+      return;
+    }
+    setContas(prev => prev.map(c => c.id === contaId ? { ...c, [field]: url } : c));
+    setSelectedConta(prev => prev && prev.id === contaId ? { ...prev, [field]: url } : prev);
+  };
+
+  const updateParcelaAnexo = async (parcelaId: string, url: string | null) => {
+    const { error } = await supabase.from('parcelas_pagar').update({ anexo_url: url }).eq('id', parcelaId);
+    if (error) {
+      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
+      return;
+    }
+    setSelectedContaParcelas(prev => prev.map(p => p.id === parcelaId ? { ...p, anexo_url: url } : p));
   };
 
   const statusBadge = (status: string) => {
@@ -214,6 +239,7 @@ export default function ContasPagar() {
                         <TableHead>Fornecedor</TableHead>
                         <TableHead>Empresa</TableHead>
                         <TableHead className="text-right">Total</TableHead>
+                        <TableHead className="text-center">Anexos</TableHead>
                         <TableHead className="text-center">Ações</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -224,6 +250,16 @@ export default function ContasPagar() {
                           <TableCell>{conta.fornecedores?.nome}</TableCell>
                           <TableCell className="max-w-[120px] truncate">{conta.empresas?.nome}</TableCell>
                           <TableCell className="text-right font-semibold">{formatCurrency(conta.valor_total)}</TableCell>
+                          <TableCell className="text-center">
+                            <div className="flex items-center justify-center gap-1 text-xs">
+                              <Badge variant={conta.nota_fiscal_url ? 'default' : 'outline'} className="gap-1">
+                                <Paperclip className="w-3 h-3" /> NF
+                              </Badge>
+                              <Badge variant={conta.boleto_url ? 'default' : 'outline'} className="gap-1">
+                                <Paperclip className="w-3 h-3" /> Boleto
+                              </Badge>
+                            </div>
+                          </TableCell>
                           <TableCell className="text-center">
                             <div className="flex justify-center gap-1">
                               <Button variant="ghost" size="sm" onClick={() => viewParcelas(conta.id)}><Eye className="w-4 h-4" /></Button>
@@ -254,6 +290,31 @@ export default function ContasPagar() {
       <Dialog open={parcelasDialog} onOpenChange={setParcelasDialog}>
         <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Detalhamento de Pagamentos</DialogTitle></DialogHeader>
+          {selectedConta && (
+            <Card className="mb-4">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <Paperclip className="w-4 h-4" /> Anexos do Título
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="grid gap-4 md:grid-cols-2">
+                <AnexoUpload
+                  label="Nota Fiscal"
+                  kind="nota-fiscal"
+                  ownerId={selectedConta.id}
+                  currentUrl={selectedConta.nota_fiscal_url}
+                  onChange={(url) => updateContaAnexo(selectedConta.id, 'nota_fiscal_url', url)}
+                />
+                <AnexoUpload
+                  label="Boleto"
+                  kind="boleto"
+                  ownerId={selectedConta.id}
+                  currentUrl={selectedConta.boleto_url}
+                  onChange={(url) => updateContaAnexo(selectedConta.id, 'boleto_url', url)}
+                />
+              </CardContent>
+            </Card>
+          )}
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
@@ -263,6 +324,7 @@ export default function ContasPagar() {
                   <TableHead className="text-right">Valor</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Data Pagto</TableHead>
+                  <TableHead className="text-center">Comprovante</TableHead>
                   {canEdit && <TableHead className="text-center w-[300px]">Baixa de Pagamento</TableHead>}
                 </TableRow>
               </TableHeader>
@@ -274,6 +336,18 @@ export default function ContasPagar() {
                     <TableCell className="text-right font-medium">{formatCurrency(p.valor_original)}</TableCell>
                     <TableCell>{statusBadge(p.status)}</TableCell>
                     <TableCell>{p.data_pagamento ? format(new Date(p.data_pagamento + 'T12:00:00'), 'dd/MM/yyyy') : '-'}</TableCell>
+                    <TableCell>
+                      <div className="flex justify-center">
+                        <AnexoUpload
+                          label="Comprovante"
+                          kind="comprovante"
+                          ownerId={p.id}
+                          currentUrl={p.anexo_url}
+                          onChange={(url) => updateParcelaAnexo(p.id, url)}
+                          compact
+                        />
+                      </div>
+                    </TableCell>
                     {canEdit && (
                       <TableCell>
                         <div className="flex items-center justify-center gap-2">
