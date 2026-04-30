@@ -21,6 +21,7 @@ import {
   UserCog,
   Wallet,
   ClipboardList,
+  LineChart,
 } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
@@ -41,6 +42,7 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { path: '/', label: 'Visão Geral', icon: LayoutDashboard, module: 'financeiro' },
+  { path: '/financeiro', label: 'Dashboard Financeiro', icon: LineChart, module: 'financeiro' },
   { path: '/upload', label: 'Novo Upload', icon: Upload, module: 'upload' },
   { path: '/historico', label: 'Histórico', icon: History, module: 'financeiro' },
   { path: '/funcionarios', label: 'Colaboradores', icon: Users, module: 'colaboradores' },
